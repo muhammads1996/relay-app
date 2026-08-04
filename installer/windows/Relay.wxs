@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="Relay"
+    Manufacturer="Relay"
+    Version="$(var.ProductVersion)"
+    UpgradeCode="C8C681E5-3937-456D-9EB9-D9B21469D927"
+    Language="1033"
+    Scope="perUser"
+    InstallerVersion="500"
+    Compressed="yes">
+
+    <SummaryInformation
+      Description="Relay API Workbench"
+      Manufacturer="Relay" />
+
+    <MajorUpgrade
+      DowngradeErrorMessage="A newer version of Relay is already installed." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <Property Id="ARPCONTACT" Value="Relay project maintainers" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/muhaymien96/relay/issues" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/muhaymien96/relay" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="LocalProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="Relay">
+          <Component Id="RelayDesktopComponent" Guid="4FA00A44-DD94-428A-9455-32BCB3C5EDDB">
+            <File
+              Id="RelayAppExe"
+              Name="relay-app.exe"
+              Source="$(var.RelayAppExe)">
+              <Shortcut
+                Id="RelayStartMenuShortcut"
+                Directory="ProgramMenuFolder"
+                Name="Relay"
+                Description="Local-first API testing workspace"
+                WorkingDirectory="INSTALLFOLDER"
+                Advertise="no" />
+            </File>
+
+            <RegistryValue
+              Root="HKCU"
+              Key="Software\Relay"
+              Name="InstallPath"
+              Type="string"
+              Value="[INSTALLFOLDER]"
+              KeyPath="yes" />
+
+            <RemoveFolder
+              Id="RemoveRelayInstallFolder"
+              Directory="INSTALLFOLDER"
+              On="uninstall" />
+          </Component>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="RelayDesktopFeature" Title="Relay desktop workbench" Level="1">
+      <ComponentRef Id="RelayDesktopComponent" />
+    </Feature>
+  </Package>
+</Wix>

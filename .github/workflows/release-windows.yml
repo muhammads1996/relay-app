@@ -1,0 +1,130 @@
+name: Release Windows MSI
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing or new release tag, for example v0.3.0
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-windows-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Build Windows MSI
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      SIGNING_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
+      SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Resolve release version
+        id: release
+        shell: pwsh
+        env:
+          DISPATCH_TAG: ${{ inputs.tag }}
+        run: |
+          $tag = if ($env:GITHUB_EVENT_NAME -eq 'push') { $env:GITHUB_REF_NAME } else { $env:DISPATCH_TAG }
+          if ($tag -notmatch '^v(\d+\.\d+\.\d+)$') {
+            throw "Release tag must be vMAJOR.MINOR.PATCH. Got: $tag"
+          }
+          $version = $Matches[1]
+          $sourceVersion = (Get-Content -Raw VERSION).Trim()
+          if ($sourceVersion -ne $version) {
+            throw "VERSION contains $sourceVersion but release tag is $tag."
+          }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Test
+        run: go test ./...
+
+      - name: Import Authenticode certificate
+        id: signing
+        if: ${{ env.SIGNING_CERTIFICATE_BASE64 != '' }}
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_PASSWORD)) {
+            throw 'WINDOWS_SIGNING_CERTIFICATE_PASSWORD is required when a signing certificate is configured.'
+          }
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'relay-signing.pfx'
+          [System.IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:SIGNING_CERTIFICATE_BASE64))
+          $password = ConvertTo-SecureString $env:SIGNING_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $certificate = Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          if ($null -eq $certificate) { throw 'The Authenticode certificate could not be imported.' }
+          Remove-Item -LiteralPath $pfxPath -Force
+          $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter signtool.exe -Recurse |
+            Where-Object FullName -Match '\\x64\\signtool\.exe$' |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if ($null -eq $signTool) { throw 'signtool.exe was not found on the Windows runner.' }
+          "thumbprint=$($certificate.Thumbprint)" >> $env:GITHUB_OUTPUT
+          "signtool=$($signTool.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Build and validate MSI
+        shell: pwsh
+        run: |
+          pwsh -File scripts/build-windows-msi.ps1 `
+            -Version '${{ steps.release.outputs.version }}' `
+            -CertificateThumbprint '${{ steps.signing.outputs.thumbprint }}' `
+            -SignToolPath '${{ steps.signing.outputs.signtool }}'
+
+      - name: Remove imported signing certificate
+        if: ${{ always() && steps.signing.outputs.thumbprint != '' }}
+        shell: pwsh
+        run: Remove-Item 'Cert:\CurrentUser\My\${{ steps.signing.outputs.thumbprint }}' -Force
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: Relay-${{ steps.release.outputs.version }}-windows-x64
+          if-no-files-found: error
+          path: |
+            dist/Relay-${{ steps.release.outputs.version }}-windows-x64.msi
+            dist/Relay-windows-x64.msi
+            dist/SHA256SUMS-windows.txt
+
+      - name: Publish GitHub Release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          gh release view $env:RELEASE_TAG *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:RELEASE_TAG --title "Relay $env:RELEASE_VERSION" --generate-notes --prerelease
+            if ($LASTEXITCODE -ne 0) { throw "Could not create GitHub Release $env:RELEASE_TAG." }
+          }
+          gh release upload $env:RELEASE_TAG `
+            "dist/Relay-$env:RELEASE_VERSION-windows-x64.msi" `
+            "dist/Relay-windows-x64.msi" `
+            "dist/SHA256SUMS-windows.txt" `
+            --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Could not upload Windows release assets." }

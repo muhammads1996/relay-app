@@ -1,0 +1,225 @@
+<!-- Marketing Site: Relay Windows Installer Download
+
+Quick copy-paste snippets for adding the Relay Windows installer to your marketing site.
+Update the version (currently 0.3.1) to match your latest release tag.
+-->
+
+<!-- ============================================================================
+     OPTION 1: Simple Download Link
+     ============================================================================ -->
+<section class="download-section">
+  <h2>Download Relay</h2>
+  <p>
+    <a href="https://github.com/muhammadi1996/relay/releases/download/v0.3.1/Relay-windows-x64.msi" 
+       class="btn btn-primary btn-lg">
+      ⬇️ Download for Windows (0.3.1)
+    </a>
+  </p>
+  <p>
+    <small>
+      Requires Windows 10/11 with WebView2 runtime.<br>
+      <a href="https://github.com/muhammad1996/relay/blob/main/installer/windows/README.md">
+        Installation guide
+      </a>
+    </small>
+  </p>
+</section>
+
+
+<!-- ============================================================================
+     OPTION 2: With System Requirements
+     ============================================================================ -->
+<section class="installer-section">
+  <div class="row">
+    <div class="col-md-6">
+      <h3>Install Relay</h3>
+      <p>
+        <a href="https://github.com/muhammadi1996/relay/releases/download/v0.3.1/Relay-windows-x64.msi"
+           class="btn btn-lg btn-success">
+          Download Windows Installer (0.3.1)
+        </a>
+      </p>
+    </div>
+    <div class="col-md-6">
+      <h4>Requirements</h4>
+      <ul>
+        <li>Windows 10 version 1909 or later</li>
+        <li>Windows 11 (any version)</li>
+        <li>WebView2 runtime (auto-installed on modern systems)</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================================
+     OPTION 3: With All Options (CLI + Installer + Source)
+     ============================================================================ -->
+<section class="download-center">
+  <h2>Get Started with Relay</h2>
+  
+  <div class="install-options">
+    <div class="option">
+      <h3>Windows Installer (Recommended)</h3>
+      <p>Graphical desktop workbench with all features included.</p>
+      <a href="https://github.com/muhammadi1996/relay/releases/download/v0.3.1/Relay-windows-x64.msi"
+         class="btn btn-primary">
+        Download MSI (0.3.1)
+      </a>
+      <details>
+        <summary>Release info</summary>
+        <ul>
+          <li>Installs to %LOCALAPPDATA%\Programs\Relay</li>
+          <li>Start Menu shortcut included</li>
+          <li>Supports auto-update</li>
+          <li><a href="https://github.com/muhammadi1996/relay/releases/download/v0.3.1/SHA256SUMS-windows.txt">
+            Verify SHA256 checksum
+          </a></li>
+        </ul>
+      </details>
+    </div>
+
+    <div class="option">
+      <h3>CLI Tool (Portable)</h3>
+      <p>Command-line interface for CI/CD pipelines and automation.</p>
+      <a href="https://github.com/muhammadi1996/relay/releases/tag/v0.3.1">
+        Download relay.exe →
+      </a>
+      <p><small>See release page for portable .exe</small></p>
+    </div>
+
+    <div class="option">
+      <h3>Build from Source</h3>
+      <p>Full control and transparency. Requires Go 1.25+</p>
+      <a href="https://github.com/muhammadi1996/relay#building-from-source">
+        Build instructions →
+      </a>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================================
+     OPTION 4: Marketing Hero Section
+     ============================================================================ -->
+<section class="hero-download" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 60px 20px;">
+  <div class="container">
+    <h1>Start Testing APIs Faster</h1>
+    <p class="lead">Relay combines your collection, environment, and tests in one workspace. Works locally and in CI.</p>
+    
+    <div style="margin-top: 30px;">
+      <a href="https://github.com/muhammadi1996/relay/releases/download/v0.3.1/Relay-windows-x64.msi"
+         class="btn btn-light btn-lg"
+         style="font-weight: bold;">
+        ⬇️ Download Relay 0.3.1
+      </a>
+      <p style="margin-top: 15px; font-size: 0.95rem;">
+        <strong>Windows 10/11</strong> | 
+        <a href="https://github.com/muhammadi1996/relay" style="color: white; text-decoration: underline;">
+          Open source on GitHub
+        </a>
+      </p>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================================
+     OPTION 5: Component Version (for versioning automated updates)
+     ============================================================================ -->
+<script>
+// Fetch the latest Relay release from GitHub and update download link
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const response = await fetch('https://api.github.com/repos/muhammadi1996/relay/releases');
+    const releases = await response.json();
+    
+    // Get the latest non-prerelease (production) version
+    const latest = releases.find(r => !r.prerelease);
+    
+    if (latest) {
+      const msiAsset = latest.assets.find(a => a.name === 'Relay-windows-x64.msi');
+      if (msiAsset) {
+        // Update all download links and version display
+        document.querySelectorAll('[data-relay-installer]').forEach(el => {
+          el.href = msiAsset.browser_download_url;
+        });
+        document.querySelectorAll('[data-relay-version]').forEach(el => {
+          el.textContent = latest.tag_name.replace('v', '');
+        });
+      }
+    }
+  } catch (error) {
+    console.warn('Could not fetch latest Relay version:', error);
+  }
+});
+</script>
+
+<a href="https://github.com/muhammadi1996/relay/releases/download/v0.3.1/Relay-windows-x64.msi"
+   data-relay-installer
+   class="btn btn-primary">
+  Download Relay v<span data-relay-version>0.3.1</span>
+</a>
+
+
+<!-- ============================================================================
+     VERIFICATION: Checking Download & Signature (for docs)
+     ============================================================================ -->
+
+<!-- Include in FAQ or support section if needed -->
+
+<details>
+  <summary><strong>How to verify your download</strong></summary>
+  <p>
+    To confirm the MSI is authentic and untampered:
+  </p>
+  
+  <h5>1. Download SHA256 Checksum</h5>
+  <p>
+    From <a href="https://github.com/muhammadi1996/relay/releases/tag/v0.3.1">
+    the release page</a>, download <code>SHA256SUMS-windows.txt</code>.
+  </p>
+  
+  <h5>2. Verify on Windows (PowerShell)</h5>
+  <pre><code class="language-powershell"># Compare your downloaded file
+$file = "C:\Users\YourName\Downloads\Relay-windows-x64.msi"
+$downloaded = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
+$expected = "abc123def456..." # from SHA256SUMS-windows.txt
+
+if ($downloaded -eq $expected) {
+  Write-Host "✓ Checksum verified! File is authentic." -ForegroundColor Green
+} else {
+  Write-Host "✗ Checksum mismatch! Do not install." -ForegroundColor Red
+}</code></pre>
+  
+  <h5>3. Signature Verification (Signed Releases Only)</h5>
+  <pre><code class="language-powershell">Get-AuthenticodeSignature "Relay-windows-x64.msi"
+# Look for Status: Valid and trusted signer</code></pre>
+</details>
+
+
+<!-- ============================================================================
+     USAGE NOTES
+     ============================================================================
+  
+  1. IMPORTANT: Always use the VERSION-SPECIFIC URL, not releases/latest
+     ✓ Correct:   https://github.com/.../download/v0.3.1/Relay-windows-x64.msi
+     ✗ Wrong:     https://github.com/.../latest/download/Relay-windows-x64.msi
+     
+     Why? GitHub's "latest" excludes prereleases, causing unexpected redirects.
+     Marketing site should always pin the version.
+
+  2. Update version number (0.3.1 in examples) whenever you cut a new release.
+
+  3. Options 4 & 5 (auto-version) require your site to allow external JS calls 
+     to GitHub API. Might be rate-limited for high-traffic sites.
+
+  4. For beta/prerelease versions, add a label:
+     "Beta Release (unsigned) — See installation guide for SmartScreen info"
+
+  5. Check installer/windows/README.md for details on:
+     - Installation location (%LOCALAPPDATA%\Programs\Relay)
+     - WebView2 requirements
+     - SmartScreen warnings (unsigned builds)
+     - Uninstall behavior
+-->

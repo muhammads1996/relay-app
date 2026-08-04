@@ -1,0 +1,2 @@
+863b3806c926c612ade9b611b9ec7a46de2acce7eacbb25935afa58d5df159a8  Relay-0.3.0-windows-x64.msi
+863b3806c926c612ade9b611b9ec7a46de2acce7eacbb25935afa58d5df159a8  Relay-windows-x64.msi

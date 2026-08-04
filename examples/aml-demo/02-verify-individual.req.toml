@@ -1,0 +1,29 @@
+name = "Verify Individual"
+method = "POST"
+url = "{{baseUrl}}/aml/v2/verify"
+
+[headers]
+Content-Type = "application/json"
+
+[auth]
+type = "bearer"
+token = "{{apiToken}}"
+
+[body]
+type = "json"
+content = '''
+{ "idNumber": "{{testIdNumber}}", "channel": "API" }
+'''
+
+[[assertions]]
+type = "status"
+equals = 200
+
+[[assertions]]
+type = "jsonpath"
+path = "$.result.status"
+equals = "VERIFIED"
+
+[[assertions]]
+type = "max_ms"
+max_ms = 2000

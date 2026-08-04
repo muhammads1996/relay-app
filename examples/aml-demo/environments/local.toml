@@ -1,0 +1,8 @@
+# Secret values are never stored here: each name listed in `secrets` is read
+# from the process environment as RELAY_SECRET_<NAME> (e.g. apiToken ->
+# RELAY_SECRET_APITOKEN). Note: `secrets` must appear before any [table].
+secrets = ["apiToken"]
+
+[vars]
+baseUrl = "http://127.0.0.1:18080"
+testIdNumber = "8001015009087"

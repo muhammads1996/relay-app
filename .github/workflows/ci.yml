@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify Windows build
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Check formatting
+        shell: pwsh
+        run: |
+          $goFiles = @(git ls-files -- '*.go')
+          gofmt -w $goFiles
+          git diff --exit-code -- '*.go'
+
+      - name: Verify modules
+        run: go mod verify
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build release binaries
+        shell: pwsh
+        run: |
+          go build -trimpath -ldflags="-s -w" -o "$env:RUNNER_TEMP\relay.exe" ./cmd/relay
+          go build -trimpath -tags="desktop,production" -ldflags="-s -w -H windowsgui" -o "$env:RUNNER_TEMP\relay-app.exe" ./cmd/relay-app

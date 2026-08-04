@@ -1,0 +1,24 @@
+/relay
+/relay.exe
+/*.exe~
+report.xml
+/relay-app
+/relay-app.exe
+relay.db
+relay.db-wal
+relay.db-shm
+.tmp-relay-ui.db*
+/.agents/
+/.claude/
+
+# Local browser and UI-audit output
+/.playwright-cli/
+/build/ui-audit/
+/build/windows-msi/
+/test-results/
+/playwright-report/
+/node_modules/
+
+# Local Go profiling and coverage output
+/coverage.out
+/*.prof

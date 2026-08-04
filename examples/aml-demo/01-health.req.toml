@@ -1,0 +1,7 @@
+name = "Health"
+method = "GET"
+url = "{{baseUrl}}/health"
+
+[[assertions]]
+type = "status"
+equals = 200

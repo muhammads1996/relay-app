@@ -177,9 +177,9 @@
   .varScope { font-size: 10px; opacity: .75; font-family: "Inter", system-ui, sans-serif; }
   #reqName { border: 0; font-weight: 700; font-size: 14px; width: 100%; padding: 0 0 2px; }
   #reqName:focus { outline: none; border-bottom: 1px dashed var(--ink); }
-  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); padding: 0 12px; overflow-x: auto; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); padding: 0 12px; overflow-x: auto; scrollbar-gutter: stable; -webkit-overflow-scrolling: touch; }
   .tabs button { border: 0; background: none; padding: 10px 10px 8px; color: var(--dim); font-weight: 600;
-                 border-bottom: 2px solid transparent; white-space: nowrap; }
+                 border-bottom: 2px solid transparent; white-space: nowrap; flex: 0 0 auto; }
   .tabs button:hover { color: var(--ink); }
   .tabs button.on { color: var(--fg); border-bottom-color: var(--ink); background: #fafbfe; }
   .tabs button .n { background: var(--ink-soft); color: var(--ink); border-radius: 99px; font-size: 10px;
@@ -259,6 +259,14 @@
   #respMeta .actions { margin-left: auto; display: flex; gap: 6px; }
   .formatBadge { border: 1px solid var(--line2); border-radius: 99px; padding: 1px 7px;
                  color: var(--dim); font-size: 10px; font-weight: 750; letter-spacing: .05em; }
+  .formatDropdown { position: relative; }
+  .formatMenu { position: absolute; top: 100%; right: 0; background: white; border: 1px solid var(--line2); 
+                border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; min-width: 120px; }
+  .formatMenu button { display: block; width: 100%; border: none; background: none; padding: 8px 12px;
+                       text-align: left; font-size: 12px; color: var(--ink); cursor: pointer; }
+  .formatMenu button:hover { background: var(--bg1); }
+  .formatMenu button:first-child { border-radius: 5px 5px 0 0; }
+  .formatMenu button:last-child { border-radius: 0 0 5px 5px; }
   .upstreamError { margin: 10px 14px 0; padding: 10px 12px; border: 1px solid #f3cccc;
                    border-radius: 8px; background: #fff7f7; color: #8b2525; }
   .upstreamError b { display: block; margin-bottom: 3px; }
@@ -842,6 +850,13 @@
     text-overflow: ellipsis;
   }
 
+  /* basic mode: hide advanced features */
+  body.mode-basic .navItem[data-view="tests"],
+  body.mode-basic .navItem[data-feature="mock-servers"],
+  body.mode-basic .navItem[data-feature="monitor"] {
+    display: none;
+  }
+
   @media (max-width: 1120px) {
     #rail { flex-basis: 164px; width: 164px; }
     #side { flex-basis: 224px; width: 224px; }
@@ -906,8 +921,8 @@
     <button class="navItem" data-view="environments">⛁ Environments</button>
     <button class="navItem" data-view="presets">☰ Header Presets</button>
     <button class="navItem" data-view="tests">☑ Test Management</button>
-    <button class="navItem" disabled>▣ Mock Servers <span class="tag">v2</span></button>
-    <button class="navItem" disabled>◉ Monitor <span class="tag">v2</span></button>
+    <button class="navItem" disabled data-feature="mock-servers">▣ Mock Servers <span class="tag">v2</span></button>
+    <button class="navItem" disabled data-feature="monitor">◉ Monitor <span class="tag">v2</span></button>
     <div id="railSpace"></div>
     <button class="navItem" data-view="settings">⚙ Settings</button>
   </nav>
@@ -1071,7 +1086,8 @@ const S = {
   openCols: new Set(), reqId: null, req: null, tab: 'headers',
   tmCollapsedFolders: new Set(),
   last: null, run: null, presetId: null, envName: localStorage.envName || '',
-  history: [], reqDirty: false, respPretty: true, respWrap: true,
+  history: [], reqDirty: false, respPretty: true, respWrap: true, respFormat: null,
+  mode: localStorage.uiMode || 'full',
   responsePaneRatio: Math.min(.78, Math.max(.28, Number(localStorage.responsePaneRatio) || .56)),
   responseMaximized: false,
 };
@@ -1083,6 +1099,18 @@ function setReqDirty(v) {
   b.textContent = S.reqDirty ? 'Save *' : 'Save';
   b.classList.toggle('dark', S.reqDirty);
 }
+
+function setUIMode(mode) {
+  S.mode = mode;
+  localStorage.uiMode = mode;
+  document.body.classList.toggle('mode-basic', mode === 'basic');
+  render();
+}
+
+function applyUIMode() {
+  document.body.classList.toggle('mode-basic', S.mode === 'basic');
+}
+
 
 async function api(url, opts = {}) {
   if (opts.body && typeof opts.body !== 'string') {
@@ -2989,7 +3017,7 @@ async function openRequest(id) {
   try {
     if (S.reqDirty && S.req && S.reqId !== id) await saveRequest();
     const r = await api('/api/requests/' + id);
-    S.reqId = id; S.req = r; S.last = null;
+    S.reqId = id; S.req = r; S.last = null; S.respFormat = null;
     renderSide(); renderRequest();
     loadStats(id);
   } catch (e) { toast(e.message, true); }
@@ -3055,8 +3083,8 @@ function applyResponsePaneSize(layout = $('requestWorkspace')) {
   }
   const splitterHeight = 12;
   const usable = Math.max(0, height - splitterHeight);
-  const minRequest = Math.min(220, usable * .48);
-  const minResponse = Math.min(240, usable * .52);
+  const minRequest = Math.min(200, usable * .40);
+  const minResponse = Math.min(280, usable * .50);
   const responseHeight = Math.max(minResponse, Math.min(usable - minRequest, usable * S.responsePaneRatio));
   const requestHeight = Math.max(0, usable - responseHeight);
   layout.style.gridTemplateRows = `${requestHeight}px ${splitterHeight}px minmax(0, 1fr)`;
@@ -3069,16 +3097,16 @@ function setResponsePaneFromPointer(layout, clientY, persist = false) {
   if (!rect.height) return;
   const splitterHeight = 12;
   const usable = Math.max(1, rect.height - splitterHeight);
-  const minRequest = Math.min(220, usable * .48);
-  const minResponse = Math.min(240, usable * .52);
+  const minRequest = Math.min(200, usable * .40);
+  const minResponse = Math.min(280, usable * .50);
   const requestHeight = Math.max(minRequest, Math.min(usable - minResponse, clientY - rect.top));
-  S.responsePaneRatio = Math.min(.78, Math.max(.28, (usable - requestHeight) / usable));
+  S.responsePaneRatio = Math.min(.75, Math.max(.30, (usable - requestHeight) / usable));
   applyResponsePaneSize(layout);
   if (persist) localStorage.responsePaneRatio = String(S.responsePaneRatio);
 }
 
 function changeResponsePaneSize(delta) {
-  S.responsePaneRatio = Math.min(.78, Math.max(.28, S.responsePaneRatio + delta));
+  S.responsePaneRatio = Math.min(.75, Math.max(.30, S.responsePaneRatio + delta));
   localStorage.responsePaneRatio = String(S.responsePaneRatio);
   applyResponsePaneSize();
 }
@@ -3458,8 +3486,188 @@ function formatBodyText(format, text, minify = false) {
   if (format === 'json') return JSON.stringify(JSON.parse(text), null, minify ? 0 : 2);
   if (format === 'xml') return formatXML(text, minify);
   if (format === 'urlencoded') return new URLSearchParams(String(text || '').replace(/\n/g, '&')).toString();
+  if (format === 'csv') return String(text || '');
+  if (format === 'yaml') return String(text || '');
+  if (format === 'base64') return String(text || '');
   return String(text || '');
 }
+
+// Convert formats between JSON, XML, CSV, etc.
+function convertFormat(fromFormat, toFormat, text) {
+  if (fromFormat === toFormat) return text;
+  let parsed;
+  
+  // Parse to intermediate object representation
+  if (fromFormat === 'json') {
+    parsed = JSON.parse(text);
+  } else if (fromFormat === 'xml') {
+    const dom = new DOMParser().parseFromString(text, 'application/xml');
+    if (dom.querySelector('parsererror')) throw new Error('Invalid XML');
+    parsed = xmlToJson(dom.documentElement);
+  } else if (fromFormat === 'csv') {
+    parsed = csvToJson(text);
+  } else if (fromFormat === 'urlencoded') {
+    parsed = Object.fromEntries(new URLSearchParams(text));
+  } else if (fromFormat === 'base64') {
+    throw new Error('Cannot convert from base64 (binary format)');
+  } else {
+    throw new Error('Cannot convert from format: ' + fromFormat);
+  }
+
+  // Convert to target format
+  if (toFormat === 'json') {
+    return JSON.stringify(parsed, null, 2);
+  } else if (toFormat === 'xml') {
+    return jsonToXml(parsed);
+  } else if (toFormat === 'csv') {
+    return jsonToCsv(parsed);
+  } else if (toFormat === 'urlencoded') {
+    if (typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Only objects can convert to urlencoded');
+    return new URLSearchParams(parsed).toString();
+  } else if (toFormat === 'yaml') {
+    return jsonToYaml(parsed);
+  } else if (toFormat === 'base64') {
+    return btoa(typeof parsed === 'string' ? parsed : JSON.stringify(parsed));
+  }
+  throw new Error('Unknown format: ' + toFormat);
+}
+
+// XML ↔ JSON converters
+function xmlToJson(element) {
+  const result = {};
+  const tagName = element.tagName;
+  const children = Array.from(element.children);
+  const textContent = element.textContent.trim();
+  
+  if (children.length === 0 && textContent) {
+    return textContent;
+  }
+  
+  const grouped = {};
+  children.forEach(child => {
+    const key = child.tagName;
+    const value = xmlToJson(child);
+    if (grouped[key]) {
+      if (!Array.isArray(grouped[key])) grouped[key] = [grouped[key]];
+      grouped[key].push(value);
+    } else {
+      grouped[key] = value;
+    }
+  });
+  
+  return grouped;
+}
+
+function jsonToXml(obj, rootName = 'root') {
+  function escape(str) {
+    return String(str).replace(/[<>&'"]/g, c => 
+      ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
+  }
+  
+  function build(key, value) {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return `<${key}>${escape(value)}</${key}>`;
+    }
+    if (Array.isArray(value)) {
+      return value.map(v => build(key, v)).join('');
+    }
+    if (typeof value === 'object') {
+      const inner = Object.entries(value).map(([k, v]) => build(k, v)).join('');
+      return `<${key}>${inner}</${key}>`;
+    }
+    return '';
+  }
+  
+  const content = Object.entries(obj).map(([k, v]) => build(k, v)).join('');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<${rootName}>${content}</${rootName}>`;
+}
+
+// CSV ↔ JSON converters
+function csvToJson(csv) {
+  const lines = csv.trim().split('\n');
+  if (lines.length < 2) throw new Error('CSV must have header and at least one row');
+  
+  const headers = parseCsvLine(lines[0]);
+  return lines.slice(1).map(line => {
+    const values = parseCsvLine(line);
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = values[i] || '');
+    return obj;
+  });
+}
+
+function jsonToCsv(obj) {
+  if (!Array.isArray(obj)) throw new Error('JSON must be array of objects for CSV conversion');
+  if (obj.length === 0) return '';
+  
+  const headers = Object.keys(obj[0]);
+  const rows = [headers.map(escapeCsvField).join(',')];
+  
+  obj.forEach(item => {
+    const values = headers.map(h => {
+      const v = item[h];
+      return escapeCsvField(typeof v === 'object' ? JSON.stringify(v) : String(v || ''));
+    });
+    rows.push(values.join(','));
+  });
+  
+  return rows.join('\n');
+}
+
+function parseCsvLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+function escapeCsvField(field) {
+  if (field.includes(',') || field.includes('"') || field.includes('\n')) {
+    return `"${field.replace(/"/g, '""')}"`;
+  }
+  return field;
+}
+
+// YAML converter (basic)
+function jsonToYaml(obj, indent = 0) {
+  const prefix = '  '.repeat(indent);
+  if (typeof obj === 'string') return obj;
+  if (typeof obj === 'number' || typeof obj === 'boolean' || obj === null) return String(obj);
+  if (Array.isArray(obj)) {
+    return '\n' + obj.map(item => 
+      prefix + '- ' + (typeof item === 'object' ? jsonToYaml(item, indent + 1) : item)
+    ).join('\n');
+  }
+  if (typeof obj === 'object') {
+    return '\n' + Object.entries(obj).map(([k, v]) => 
+      prefix + k + ': ' + (typeof v === 'object' ? jsonToYaml(v, indent + 1) : v)
+    ).join('\n');
+  }
+  return '';
+}
+
+// Get available formats for current body
+function getAvailableFormats(bodyFormat) {
+  const all = ['json', 'xml', 'csv', 'urlencoded', 'yaml', 'base64', 'text'];
+  // Some formats can't convert to others
+  if (bodyFormat === 'base64' || bodyFormat === 'text') return [bodyFormat];
+  return all.filter(f => f !== bodyFormat);
+}
+
 
 function formatRequestBody(body, minify, save) {
   try {
@@ -3669,14 +3877,27 @@ function renderResponse(card) {
   }
   const ok = r.status >= 200 && r.status < 400;
   const bodyFormat = detectBodyFormat(r.headers, r.body);
+  const availableFormats = getAvailableFormats(bodyFormat);
   metaBar.append(
     h('span', { class: 'pill ' + (ok ? 'ok' : 'bad') }, h('span', { class: 'dot' }), `${r.status} ${esc(r.statusText).replace(/^\d+ /, '')}`),
     h('span', {}, `Time: ${r.timing.total.toFixed(0)}ms`),
     h('span', {}, `Size: ${fmtSize(r.size)}${r.truncated ? ' (view truncated)' : ''}`),
-    h('span', { class: 'formatBadge', title: headerValue(r.headers, 'content-type') || 'Detected from body' }, bodyFormat.toUpperCase()),
+    h('span', { class: 'formatBadge', title: headerValue(r.headers, 'content-type') || 'Detected from body' }, (S.respFormat || bodyFormat).toUpperCase()),
     h('span', { class: 'actions' },
       h('button', { class: 'iconBtn', title: 'Toggle formatted/raw response', onclick: () => { S.respPretty = !S.respPretty; renderResponse(); } }, S.respPretty ? 'Raw' : 'Pretty'),
       h('button', { class: 'iconBtn', title: 'Toggle line wrapping', onclick: () => { S.respWrap = !S.respWrap; renderResponse(); } }, S.respWrap ? 'No wrap' : 'Wrap'),
+      availableFormats.length > 0 ? h('div', { class: 'formatDropdown' },
+        h('button', { class: 'iconBtn', title: 'Convert format', onclick: function(e) { 
+          this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'block' ? 'none' : 'block';
+        }}, '⚙ Format'),
+        h('div', { class: 'formatMenu', style: 'display:none' },
+          availableFormats.map(fmt => h('button', { 
+            onclick: () => { 
+              S.respFormat = fmt; 
+              document.querySelector('.formatDropdown .formatMenu').style.display = 'none';
+              renderResponse(); 
+            }
+          }, fmt.toUpperCase())))) : '',
       h('button', { class: 'iconBtn', title: 'Reset request/response split', onclick: resetResponsePaneSize }, '↕ Reset'),
       h('button', { class: 'iconBtn', title: S.responseMaximized ? 'Restore request and response panes' : 'Maximize response pane', onclick: toggleResponseMaximized }, S.responseMaximized ? 'Restore' : 'Maximize'),
       h('button', { class: 'iconBtn', title: 'Copy response body', onclick: () => copyText(r.body, 'Body') }, '⧉ Body'),
@@ -3758,13 +3979,25 @@ async function copyCurl() {
 }
 
 function formatBodyForDisplay(headers, text, pretty = true) {
-  const format = detectBodyFormat(headers, text);
-  if (!pretty) return { format, text: String(text || '') };
+  const detectedFormat = detectBodyFormat(headers, text);
+  const displayFormat = S.respFormat || detectedFormat;
+  let converted = text;
+  
+  // Convert if requested format differs from detected
+  if (displayFormat !== detectedFormat && S.respFormat) {
+    try {
+      converted = convertFormat(detectedFormat, displayFormat, text);
+    } catch (e) {
+      return { format: detectedFormat, text: String(text || ''), error: e.message };
+    }
+  }
+  
+  if (!pretty) return { format: displayFormat, text: String(converted || '') };
   try {
-    if (format === 'html') return { format, text: indentMarkup(String(text || '').trim()) };
-    return { format, text: formatBodyText(format, text, false) };
+    if (displayFormat === 'html') return { format: displayFormat, text: indentMarkup(String(converted || '').trim()) };
+    return { format: displayFormat, text: formatBodyText(displayFormat, converted, false) };
   } catch {
-    return { format, text: String(text || '') };
+    return { format: displayFormat, text: String(converted || '') };
   }
 }
 
@@ -3838,6 +4071,7 @@ async function send() {
   try {
     await saveRequest();
     S.last = await api('/api/send', { method: 'POST', body: { requestId: S.req.id, env: S.envName } });
+    S.respFormat = null;
     renderResponse(); loadStats(S.req.id); loadHistory();
   } catch (e) { toast(e.message, true); }
   finally { $('sendBtn').disabled = false; }
@@ -3905,6 +4139,23 @@ async function renderSettingsView() {
   card.append(h('div', { class: 'note', style: 'margin-top:14px' },
     'Secrets are never stored here: environment secrets come from RELAY_SECRET_* process variables.'));
   work.append(card);
+
+  // — UI Mode settings card —
+  const modeCard = h('div', { class: 'card', style: 'padding:16px;margin-bottom:14px' });
+  modeCard.append(h('h2', { style: 'margin:0 0 4px;font-family:var(--mono)' }, 'UI Mode'));
+  modeCard.append(h('div', { style: 'color:var(--dim);margin-bottom:14px' }, 'Choose the interface mode that best fits your workflow.'));
+  const modeRow = h('div', { class: 'formRow' }, h('label', {}, 'Interface mode'));
+  const modeSelect = h('select', { style: 'min-width:150px', value: S.mode,
+    onchange: (e) => { setUIMode(e.target.value); } },
+    h('option', { value: 'full' }, 'Full (API client + Test Management)'),
+    h('option', { value: 'basic' }, 'Basic (API client only)'));
+  modeRow.append(modeSelect);
+  modeCard.append(modeRow);
+  modeCard.append(h('div', { class: 'note', style: 'margin-top:10px' },
+    h('b', {}, 'Full mode: '), 'Includes Test Management, Mock Servers, Monitor, and Runner features for comprehensive API testing. ', 
+    h('br', {}),
+    h('b', {}, 'Basic mode: '), 'Hides Test Management features for simplified API client workflow. Test Management features are still available in Full mode.'));
+  work.append(modeCard);
 
   // — Xray Cloud settings card —
   const xcard = h('div', { class: 'card', style: 'padding:16px' });
@@ -4511,6 +4762,16 @@ function debounce(fn, ms) {
   let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
 async function copyText(text, label) {
+  // Show copy preview by selecting text in response body if visible
+  const respBody = $('respBody');
+  if (respBody && respBody.textContent.includes(text)) {
+    const range = document.createRange();
+    const sel = window.getSelection();
+    range.selectNodeContents(respBody);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    setTimeout(() => sel.removeAllRanges(), 100);
+  }
   try { await navigator.clipboard.writeText(text); }
   catch {
     const ta = h('textarea', { style: 'position:fixed;opacity:0' }, text);
@@ -4591,6 +4852,7 @@ function showHistCtx(e, entry) {
 
 ctxMenu.init();
 modal.init();
+applyUIMode();
 refresh().then(() => {
   if (S.state.collections[0]) {
     S.openCols.add(S.state.collections[0].id);

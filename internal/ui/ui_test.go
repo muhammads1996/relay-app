@@ -275,8 +275,18 @@ func TestIndexServed(t *testing.T) {
 	s, _ := newServer(t)
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
-	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "API Workbench") {
+	body := rec.Body.String()
+	if rec.Code != 200 || !strings.Contains(body, "API Workbench") {
 		t.Errorf("index: %d", rec.Code)
+	}
+	for _, rule := range []string{
+		"background: Highlight; color: HighlightText; -webkit-text-fill-color: HighlightText;",
+		".varMirror .var-token {",
+		"padding: 0; border: 0; border-radius: 3px; font-weight: inherit;",
+	} {
+		if !strings.Contains(body, rule) {
+			t.Errorf("index is missing variable editor rule %q", rule)
+		}
 	}
 }
 

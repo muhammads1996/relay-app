@@ -1087,6 +1087,7 @@ const S = {
   tmCollapsedFolders: new Set(),
   last: null, run: null, presetId: null, envName: localStorage.envName || '',
   history: [], reqDirty: false, respPretty: true, respWrap: true, respFormat: null,
+  mode: localStorage.uiMode || 'full',
   responsePaneRatio: Math.min(.78, Math.max(.28, Number(localStorage.responsePaneRatio) || .56)),
   responseMaximized: false,
 };
@@ -1098,6 +1099,18 @@ function setReqDirty(v) {
   b.textContent = S.reqDirty ? 'Save *' : 'Save';
   b.classList.toggle('dark', S.reqDirty);
 }
+
+function setUIMode(mode) {
+  S.mode = mode;
+  localStorage.uiMode = mode;
+  document.body.classList.toggle('mode-basic', mode === 'basic');
+  render();
+}
+
+function applyUIMode() {
+  document.body.classList.toggle('mode-basic', S.mode === 'basic');
+}
+
 
 async function api(url, opts = {}) {
   if (opts.body && typeof opts.body !== 'string') {
@@ -4127,6 +4140,23 @@ async function renderSettingsView() {
     'Secrets are never stored here: environment secrets come from RELAY_SECRET_* process variables.'));
   work.append(card);
 
+  // — UI Mode settings card —
+  const modeCard = h('div', { class: 'card', style: 'padding:16px;margin-bottom:14px' });
+  modeCard.append(h('h2', { style: 'margin:0 0 4px;font-family:var(--mono)' }, 'UI Mode'));
+  modeCard.append(h('div', { style: 'color:var(--dim);margin-bottom:14px' }, 'Choose the interface mode that best fits your workflow.'));
+  const modeRow = h('div', { class: 'formRow' }, h('label', {}, 'Interface mode'));
+  const modeSelect = h('select', { style: 'min-width:150px', value: S.mode,
+    onchange: (e) => { setUIMode(e.target.value); } },
+    h('option', { value: 'full' }, 'Full (API client + Test Management)'),
+    h('option', { value: 'basic' }, 'Basic (API client only)'));
+  modeRow.append(modeSelect);
+  modeCard.append(modeRow);
+  modeCard.append(h('div', { class: 'note', style: 'margin-top:10px' },
+    h('b', {}, 'Full mode: '), 'Includes Test Management, Mock Servers, Monitor, and Runner features for comprehensive API testing. ', 
+    h('br', {}),
+    h('b', {}, 'Basic mode: '), 'Hides Test Management features for simplified API client workflow. Test Management features are still available in Full mode.'));
+  work.append(modeCard);
+
   // — Xray Cloud settings card —
   const xcard = h('div', { class: 'card', style: 'padding:16px' });
   xcard.append(h('h2', { style: 'margin:0 0 4px;font-family:var(--mono)' }, 'Xray Cloud (Jira)'));
@@ -4822,6 +4852,7 @@ function showHistCtx(e, entry) {
 
 ctxMenu.init();
 modal.init();
+applyUIMode();
 refresh().then(() => {
   if (S.state.collections[0]) {
     S.openCols.add(S.state.collections[0].id);

@@ -177,9 +177,9 @@
   .varScope { font-size: 10px; opacity: .75; font-family: "Inter", system-ui, sans-serif; }
   #reqName { border: 0; font-weight: 700; font-size: 14px; width: 100%; padding: 0 0 2px; }
   #reqName:focus { outline: none; border-bottom: 1px dashed var(--ink); }
-  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); padding: 0 12px; overflow-x: auto; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); padding: 0 12px; overflow-x: auto; scrollbar-gutter: stable; -webkit-overflow-scrolling: touch; }
   .tabs button { border: 0; background: none; padding: 10px 10px 8px; color: var(--dim); font-weight: 600;
-                 border-bottom: 2px solid transparent; white-space: nowrap; }
+                 border-bottom: 2px solid transparent; white-space: nowrap; flex: 0 0 auto; }
   .tabs button:hover { color: var(--ink); }
   .tabs button.on { color: var(--fg); border-bottom-color: var(--ink); background: #fafbfe; }
   .tabs button .n { background: var(--ink-soft); color: var(--ink); border-radius: 99px; font-size: 10px;
@@ -842,6 +842,13 @@
     text-overflow: ellipsis;
   }
 
+  /* basic mode: hide advanced features */
+  body.mode-basic .navItem[data-view="tests"],
+  body.mode-basic .navItem[data-feature="mock-servers"],
+  body.mode-basic .navItem[data-feature="monitor"] {
+    display: none;
+  }
+
   @media (max-width: 1120px) {
     #rail { flex-basis: 164px; width: 164px; }
     #side { flex-basis: 224px; width: 224px; }
@@ -906,8 +913,8 @@
     <button class="navItem" data-view="environments">⛁ Environments</button>
     <button class="navItem" data-view="presets">☰ Header Presets</button>
     <button class="navItem" data-view="tests">☑ Test Management</button>
-    <button class="navItem" disabled>▣ Mock Servers <span class="tag">v2</span></button>
-    <button class="navItem" disabled>◉ Monitor <span class="tag">v2</span></button>
+    <button class="navItem" disabled data-feature="mock-servers">▣ Mock Servers <span class="tag">v2</span></button>
+    <button class="navItem" disabled data-feature="monitor">◉ Monitor <span class="tag">v2</span></button>
     <div id="railSpace"></div>
     <button class="navItem" data-view="settings">⚙ Settings</button>
   </nav>
@@ -3055,8 +3062,8 @@ function applyResponsePaneSize(layout = $('requestWorkspace')) {
   }
   const splitterHeight = 12;
   const usable = Math.max(0, height - splitterHeight);
-  const minRequest = Math.min(220, usable * .48);
-  const minResponse = Math.min(240, usable * .52);
+  const minRequest = Math.min(200, usable * .40);
+  const minResponse = Math.min(280, usable * .50);
   const responseHeight = Math.max(minResponse, Math.min(usable - minRequest, usable * S.responsePaneRatio));
   const requestHeight = Math.max(0, usable - responseHeight);
   layout.style.gridTemplateRows = `${requestHeight}px ${splitterHeight}px minmax(0, 1fr)`;
@@ -3069,16 +3076,16 @@ function setResponsePaneFromPointer(layout, clientY, persist = false) {
   if (!rect.height) return;
   const splitterHeight = 12;
   const usable = Math.max(1, rect.height - splitterHeight);
-  const minRequest = Math.min(220, usable * .48);
-  const minResponse = Math.min(240, usable * .52);
+  const minRequest = Math.min(200, usable * .40);
+  const minResponse = Math.min(280, usable * .50);
   const requestHeight = Math.max(minRequest, Math.min(usable - minResponse, clientY - rect.top));
-  S.responsePaneRatio = Math.min(.78, Math.max(.28, (usable - requestHeight) / usable));
+  S.responsePaneRatio = Math.min(.75, Math.max(.30, (usable - requestHeight) / usable));
   applyResponsePaneSize(layout);
   if (persist) localStorage.responsePaneRatio = String(S.responsePaneRatio);
 }
 
 function changeResponsePaneSize(delta) {
-  S.responsePaneRatio = Math.min(.78, Math.max(.28, S.responsePaneRatio + delta));
+  S.responsePaneRatio = Math.min(.75, Math.max(.30, S.responsePaneRatio + delta));
   localStorage.responsePaneRatio = String(S.responsePaneRatio);
   applyResponsePaneSize();
 }
@@ -4511,6 +4518,16 @@ function debounce(fn, ms) {
   let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
 async function copyText(text, label) {
+  // Show copy preview by selecting text in response body if visible
+  const respBody = $('respBody');
+  if (respBody && respBody.textContent.includes(text)) {
+    const range = document.createRange();
+    const sel = window.getSelection();
+    range.selectNodeContents(respBody);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    setTimeout(() => sel.removeAllRanges(), 100);
+  }
   try { await navigator.clipboard.writeText(text); }
   catch {
     const ta = h('textarea', { style: 'position:fixed;opacity:0' }, text);

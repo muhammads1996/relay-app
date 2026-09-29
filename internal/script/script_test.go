@@ -51,6 +51,43 @@ func TestPMTestFail(t *testing.T) {
 	}
 }
 
+func TestConsoleOutputDoesNotBecomeFailure(t *testing.T) {
+	scope := &script.Scope{Env: map[string]string{}, Collection: map[string]string{}}
+	res := script.RunTests(`
+		console.log("started", 3);
+		console.warn("careful");
+		console.error("diagnostic");
+		pm.test("still passes", function() { pm.expect(1).to.equal(1); });
+	`, scope, &script.Response{Code: 200})
+	if len(res.Errors) != 0 {
+		t.Fatalf("console output became runtime errors: %v", res.Errors)
+	}
+	if len(res.Tests) != 1 || !res.Tests[0].Passed {
+		t.Fatalf("console output changed test result: %+v", res.Tests)
+	}
+	wantLevels := []string{"log", "warn", "error"}
+	wantMessages := []string{"started 3", "careful", "diagnostic"}
+	if len(res.Console) != len(wantLevels) {
+		t.Fatalf("console entries = %+v", res.Console)
+	}
+	for i, message := range res.Console {
+		if message.Level != wantLevels[i] || message.Message != wantMessages[i] {
+			t.Errorf("console[%d] = %+v, want %s %q", i, message, wantLevels[i], wantMessages[i])
+		}
+	}
+}
+
+func TestUncaughtExceptionRemainsRuntimeErrorAlongsideConsole(t *testing.T) {
+	res := script.RunTests(`console.warn("before"); throw new Error("broken");`,
+		&script.Scope{Env: map[string]string{}, Collection: map[string]string{}}, &script.Response{Code: 200})
+	if len(res.Console) != 1 || res.Console[0].Level != "warn" {
+		t.Fatalf("console output = %+v", res.Console)
+	}
+	if len(res.Errors) != 1 || !strings.Contains(res.Errors[0], "broken") {
+		t.Fatalf("uncaught exception was not retained as runtime error: %v", res.Errors)
+	}
+}
+
 func TestPMVariableSetGet(t *testing.T) {
 	scope := &script.Scope{
 		Env:        map[string]string{"host": "localhost"},

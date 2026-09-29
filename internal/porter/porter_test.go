@@ -82,11 +82,11 @@ func TestImportPostman(t *testing.T) {
 	if req.Method != "POST" || req.URL != "{{baseUrl}}/aml/v2/verify" {
 		t.Errorf("req = %+v", req)
 	}
-	if req.Headers["Content-Type"] != "application/json" {
-		t.Errorf("headers = %v", req.Headers)
+	if len(req.HeaderEntries) != 2 || req.HeaderEntries[0].Key != "Content-Type" || req.HeaderEntries[0].Value != "application/json" || req.HeaderEntries[0].Disabled {
+		t.Errorf("ordered headers = %+v", req.HeaderEntries)
 	}
-	if _, ok := req.Headers["X-Off"]; ok {
-		t.Error("disabled header should be dropped")
+	if len(req.HeaderEntries) < 2 || req.HeaderEntries[1].Key != "X-Off" || !req.HeaderEntries[1].Disabled {
+		t.Errorf("disabled header row was not preserved: %+v", req.HeaderEntries)
 	}
 	if req.Body == nil || req.Body.Type != "json" || !strings.Contains(req.Body.Content, "testIdNumber") {
 		t.Errorf("body = %+v", req.Body)

@@ -19,16 +19,20 @@ type Scripts struct {
 
 // Request is one .req.toml file.
 type Request struct {
-	Name       string            `toml:"name" json:"name"`
-	Method     string            `toml:"method" json:"method"`
-	URL        string            `toml:"url" json:"url"`
-	Query      map[string]string `toml:"query" json:"query,omitempty"`
-	Headers    map[string]string `toml:"headers" json:"headers,omitempty"`
-	Vars       map[string]string `toml:"vars" json:"vars,omitempty"`
-	Auth       *Auth             `toml:"auth" json:"auth,omitempty"`
-	Body       *Body             `toml:"body" json:"body,omitempty"`
-	Assertions []Assertion       `toml:"assertions" json:"assertions,omitempty"`
-	Scripts    *Scripts          `toml:"scripts" json:"scripts,omitempty"`
+	Name    string            `toml:"name" json:"name"`
+	Method  string            `toml:"method" json:"method"`
+	URL     string            `toml:"url" json:"url"`
+	Query   map[string]string `toml:"query" json:"query,omitempty"`
+	Headers map[string]string `toml:"headers" json:"headers,omitempty"`
+	// QueryEntries and HeaderEntries preserve editor order, duplicates, and
+	// disabled rows. The maps above remain the backward-compatible format.
+	QueryEntries  []Entry           `toml:"query_entries" json:"queryEntries,omitempty"`
+	HeaderEntries []Entry           `toml:"header_entries" json:"headerEntries,omitempty"`
+	Vars          map[string]string `toml:"vars" json:"vars,omitempty"`
+	Auth          *Auth             `toml:"auth" json:"auth,omitempty"`
+	Body          *Body             `toml:"body" json:"body,omitempty"`
+	Assertions    []Assertion       `toml:"assertions" json:"assertions,omitempty"`
+	Scripts       *Scripts          `toml:"scripts" json:"scripts,omitempty"`
 
 	// Test-management metadata. Optional; absent from older .req.toml files.
 	Tags         []string `toml:"tags" json:"tags,omitempty"`
@@ -43,6 +47,14 @@ type Request struct {
 
 	// Path is where the request was loaded from (not serialized).
 	Path string `toml:"-" json:"-"`
+}
+
+// Entry is one ordered query parameter or header row. Disabled defaults to
+// false so omitted fields in older and hand-written JSON remain enabled.
+type Entry struct {
+	Key      string `toml:"key" json:"key"`
+	Value    string `toml:"value" json:"value"`
+	Disabled bool   `toml:"disabled" json:"disabled,omitempty"`
 }
 
 // Auth holds the request auth helper config.
@@ -121,8 +133,18 @@ type Environment struct {
 
 // LoadRequest parses one .req.toml file.
 func LoadRequest(path string) (*Request, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return ParseRequest(path, data)
+}
+
+// ParseRequest parses a request from bytes already read from disk. Callers can
+// hash the same bytes for optimistic concurrency without reading the file twice.
+func ParseRequest(path string, data []byte) (*Request, error) {
 	var r Request
-	if _, err := toml.DecodeFile(path, &r); err != nil {
+	if _, err := toml.Decode(string(data), &r); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	if r.Method == "" {

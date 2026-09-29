@@ -1,5 +1,7 @@
 # Relay Windows Installer Setup Checklist
 
+> This checklist describes installer configuration, not product release readiness. The [current implementation status](IMPLEMENTATION_STATUS_2026-09-29.md) has open native, migration, recovery, and performance gates. Do not create a production tag from this checklist alone.
+
 ## ✅ Configuration Status
 
 ### Core Infrastructure
@@ -48,7 +50,9 @@
 
 ---
 
-## 🚀 To Trigger Your First Release
+## 🚀 Release procedure after product gates pass
+
+Complete the [implementation status gates](IMPLEMENTATION_STATUS_2026-09-29.md) and verify the exact release candidate on a supported native Windows host before following these steps. A passing packaging workflow alone does not establish product readiness.
 
 ### For Unsigned Beta Release (Recommended for Now)
 
@@ -103,9 +107,9 @@ See `docs/INSTALLER_SETUP.md` → **Production: Code-Signed Release** for detail
 ## ✨ What Users Get
 
 ### Unsigned Release (Today)
-- ✅ Full-featured desktop app
+- ⚠️ Desktop build configured; product release gates remain open
 - ✅ Free, no certificate needed
-- ✅ Works perfectly on all Windows versions
+- ⚠️ Supported Windows versions and native WebView2 behavior still require release-candidate verification
 - ⚠️ SmartScreen shows "unknown publisher" (one-time) — fixed by signing later
 - 📝 Clear warning on GitHub release page
 
@@ -154,7 +158,7 @@ go vet ./...
 # 2. Run tests
 go test ./...
 
-# 3. Build locally (optional smoke test)
+# 3. Build locally and smoke test the exact candidate
 go build -o relay ./cmd/relay
 .\relay version
 
@@ -204,6 +208,8 @@ A:
 
 ---
 
-**Last verified**: 2026-08-04  
-**Release workflow status**: ✅ Ready  
-**Next action**: Update `VERSION` and push a tag to trigger the first release
+**Installer configuration last verified**: 2026-08-04
+
+**Release workflow status**: Configured; product release gates remain open.
+
+**Next action**: Complete and record the [open release gates](IMPLEMENTATION_STATUS_2026-09-29.md#open-release-gates) before changing `VERSION` or pushing a release tag.

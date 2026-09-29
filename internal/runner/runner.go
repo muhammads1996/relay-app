@@ -29,10 +29,27 @@ type Options struct {
 	Priorities []string      // run only requests matching one of these priorities
 	// Data makes the run data-driven: the whole collection executes once
 	// per row, with the row's values as the highest-precedence variables.
-	Data    []map[string]string
-	Engine  engine.Options
-	OnStart func(name string) // optional progress hooks
-	OnDone  func(rr RequestResult)
+	Data           []map[string]string
+	Engine         engine.Options
+	DisableCookies bool              // disable cookie persistence within this run
+	OnStart        func(name string) // optional progress hooks
+	OnDone         func(rr RequestResult)
+	OnProgress     func(ProgressEvent)
+}
+
+// ProgressEvent is a snapshot of collection execution. Completed counts files
+// processed (including filtered files); Results contains only executed files.
+// Terminal is set for the final event, and Cancelled distinguishes a context
+// cancellation from a normal finish.
+type ProgressEvent struct {
+	Current   string
+	Completed int
+	Total     int
+	Results   []RequestResult
+	Elapsed   time.Duration
+	Terminal  bool
+	Cancelled bool
+	Error     string
 }
 
 // ScriptTest is one pm.test result from a test script.
@@ -133,28 +150,61 @@ func Run(ctx context.Context, root string, opts Options) (*Report, error) {
 	if len(files) == 0 {
 		return nil, fmt.Errorf("no *.req.toml files under %s", root)
 	}
+	// Each run gets a fresh session by default. Callers can explicitly provide
+	// a session in Engine.Cookies to share it, or opt out with DisableCookies.
+	if opts.DisableCookies {
+		opts.Engine.Cookies = nil
+	} else if opts.Engine.Cookies == nil {
+		opts.Engine.Cookies = engine.NewCookieSession()
+	}
 
 	rows := opts.Data
 	if len(rows) == 0 {
 		rows = []map[string]string{nil}
 	}
 
+	total := len(files) * len(rows)
 	report := &Report{Root: root, Started: time.Now()}
+	completed := 0
+	emitProgress := func(current string, terminal, cancelled bool, err error) {
+		if opts.OnProgress == nil {
+			return
+		}
+		event := ProgressEvent{
+			Current: current, Completed: completed, Total: total,
+			Results: append([]RequestResult(nil), report.Results...),
+			Elapsed: time.Since(report.Started), Terminal: terminal, Cancelled: cancelled,
+		}
+		if err != nil {
+			event.Error = err.Error()
+		}
+		opts.OnProgress(event)
+	}
 	first := true
 	sessionVars := map[string]string{}
 loop:
 	for iter, row := range rows {
 		for _, f := range files {
+			if err := ctx.Err(); err != nil {
+				report.Duration = time.Since(report.Started)
+				emitProgress("", true, true, err)
+				return report, err
+			}
 			if !first && opts.Delay > 0 {
 				select {
 				case <-time.After(opts.Delay):
 				case <-ctx.Done():
+					report.Duration = time.Since(report.Started)
+					emitProgress("", true, true, ctx.Err())
 					return report, ctx.Err()
 				}
 			}
 			first = false
+			emitProgress(filepath.Base(f), false, false, nil)
 			rr := runOne(ctx, root, f, row, sessionVars, opts)
+			completed++
 			if rr.skip {
+				emitProgress(filepath.Base(f), false, false, nil)
 				continue
 			}
 			if len(opts.Data) > 0 {
@@ -165,13 +215,34 @@ loop:
 				opts.OnDone(rr)
 			}
 			report.Results = append(report.Results, rr)
+			emitProgress(filepath.Base(f), false, false, nil)
 			if opts.Bail && rr.Failed() {
 				break loop
 			}
 		}
 	}
 	report.Duration = time.Since(report.Started)
+	if err := ctx.Err(); err != nil {
+		emitProgress("", true, true, err)
+		return report, err
+	}
+	emitProgress("", true, false, nil)
 	return report, nil
+}
+
+// RunWithProgress executes a collection and reports progress snapshots through
+// callback. Cancellation uses ctx; the returned report retains completed work.
+func RunWithProgress(ctx context.Context, root string, opts Options, callback func(ProgressEvent)) (*Report, error) {
+	previous := opts.OnProgress
+	if previous != nil && callback != nil {
+		opts.OnProgress = func(event ProgressEvent) {
+			previous(event)
+			callback(event)
+		}
+	} else if callback != nil {
+		opts.OnProgress = callback
+	}
+	return Run(ctx, root, opts)
 }
 
 func runOne(ctx context.Context, root, file string, row map[string]string, sessionVars map[string]string, opts Options) RequestResult {

@@ -3,11 +3,13 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/muhaymien96/relay/internal/dsl"
+	"github.com/muhaymien96/relay/internal/secretstore"
 )
 
 const testManagementSchema = `
@@ -165,11 +167,12 @@ type XrayCredentials struct {
 }
 
 type XrayCredentialStatus struct {
-	HasClientID     bool   `json:"hasClientId"`
-	HasClientSecret bool   `json:"hasClientSecret"`
-	HasJiraEmail    bool   `json:"hasJiraEmail"`
-	HasJiraAPIKey   bool   `json:"hasJiraApiKey"`
-	Source          string `json:"source"`
+	HasClientID         bool   `json:"hasClientId"`
+	HasClientSecret     bool   `json:"hasClientSecret"`
+	HasJiraEmail        bool   `json:"hasJiraEmail"`
+	HasJiraAPIKey       bool   `json:"hasJiraApiKey"`
+	LegacySQLitePresent bool   `json:"legacySQLitePresent"`
+	Source              string `json:"source"`
 }
 
 func (s *Store) ensureTestManagement() error {
@@ -770,6 +773,19 @@ func scanTestRun(row testCaseScanner) (TestRun, error) {
 }
 
 func (s *Store) SaveXrayCredentials(creds XrayCredentials) error {
+	if s.secretStore != nil {
+		// One JSON record makes updates atomic at the backend boundary. Existing
+		// SQLite credentials remain untouched as a recoverable legacy backup.
+		data, err := json.Marshal(creds)
+		if err != nil {
+			return err
+		}
+		key, err := s.xrayCredentialSecretKey()
+		if err != nil {
+			return err
+		}
+		return s.secretStore.Set(key, string(data))
+	}
 	if err := s.ensureTestManagement(); err != nil {
 		return err
 	}
@@ -779,34 +795,76 @@ func (s *Store) SaveXrayCredentials(creds XrayCredentials) error {
 }
 
 func (s *Store) XrayCredentials() (XrayCredentials, error) {
+	creds, _, err := s.xrayCredentialsWithSource()
+	return creds, err
+}
+
+func (s *Store) xrayCredentialsWithSource() (XrayCredentials, string, error) {
+	if s.secretStore != nil {
+		key, err := s.xrayCredentialSecretKey()
+		if err != nil {
+			return XrayCredentials{}, "", err
+		}
+		data, err := s.secretStore.Get(key)
+		if err == nil {
+			var creds XrayCredentials
+			if err := json.Unmarshal([]byte(data), &creds); err != nil {
+				return XrayCredentials{}, "", fmt.Errorf("decoding external Xray credentials: %w", err)
+			}
+			return creds, "secure store", nil
+		}
+		if !errors.Is(err, secretstore.ErrNotFound) {
+			return XrayCredentials{}, "", err
+		}
+	}
+	creds, err := s.legacyXrayCredentials()
+	if err != nil {
+		return XrayCredentials{}, "", err
+	}
+	if creds.ClientID == "" && creds.ClientSecret == "" && creds.JiraEmail == "" && creds.JiraAPIKey == "" {
+		return creds, "none", nil
+	}
+	if s.secretStore != nil {
+		return creds, "legacy SQLite", nil
+	}
+	return creds, "stored", nil
+}
+
+func (s *Store) legacyXrayCredentials() (XrayCredentials, error) {
 	if err := s.ensureTestManagement(); err != nil {
 		return XrayCredentials{}, err
 	}
 	var data string
 	err := s.db.QueryRow(`SELECT data FROM xray_credentials WHERE id = 1`).Scan(&data)
-	if err != nil {
+	if errors.Is(err, sql.ErrNoRows) {
 		return XrayCredentials{}, nil
 	}
+	if err != nil {
+		return XrayCredentials{}, err
+	}
 	var creds XrayCredentials
-	_ = json.Unmarshal([]byte(data), &creds)
+	if err := json.Unmarshal([]byte(data), &creds); err != nil {
+		return XrayCredentials{}, fmt.Errorf("decoding legacy Xray credentials: %w", err)
+	}
 	return creds, nil
 }
 
 func (s *Store) XrayCredentialStatus() (XrayCredentialStatus, error) {
-	creds, err := s.XrayCredentials()
+	creds, source, err := s.xrayCredentialsWithSource()
 	if err != nil {
 		return XrayCredentialStatus{}, err
 	}
-	source := "stored"
-	if creds.ClientID == "" && creds.ClientSecret == "" && creds.JiraEmail == "" && creds.JiraAPIKey == "" {
-		source = "none"
+	legacy, err := s.legacyXrayCredentials()
+	if err != nil {
+		return XrayCredentialStatus{}, err
 	}
 	return XrayCredentialStatus{
-		HasClientID:     creds.ClientID != "",
-		HasClientSecret: creds.ClientSecret != "",
-		HasJiraEmail:    creds.JiraEmail != "",
-		HasJiraAPIKey:   creds.JiraAPIKey != "",
-		Source:          source,
+		HasClientID:         creds.ClientID != "",
+		HasClientSecret:     creds.ClientSecret != "",
+		HasJiraEmail:        creds.JiraEmail != "",
+		HasJiraAPIKey:       creds.JiraAPIKey != "",
+		LegacySQLitePresent: legacy.ClientID != "" || legacy.ClientSecret != "" || legacy.JiraEmail != "" || legacy.JiraAPIKey != "",
+		Source:              source,
 	}, nil
 }
 

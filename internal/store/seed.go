@@ -16,49 +16,86 @@ import (
 // subdirectories become folders (deeper nesting flattens into "a/b" folder
 // names), and environments/*.toml become environments.
 func (s *Store) SeedFromDir(root string) (int64, error) {
-	colID, err := s.seedCollection(root)
+	prepared, err := prepareSeed(root)
 	if err != nil {
 		return 0, err
 	}
-	envDir := filepath.Join(root, "environments")
-	matches, _ := filepath.Glob(filepath.Join(envDir, "*.toml"))
-	for _, m := range matches {
-		env, err := dsl.LoadEnvironment(m)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	col := prepared.collection
+	res, err := tx.Exec(`INSERT INTO collections (name, headers, vars) VALUES (?, ?, ?)`, col.Name, j(col.Headers), j(col.Vars))
+	if err != nil {
+		return 0, err
+	}
+	colID, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	folderIDs := make(map[string]int64, len(prepared.folders))
+	for _, folder := range prepared.folders {
+		res, err := tx.Exec(`INSERT INTO folders (collection_id, name, headers, vars) VALUES (?, ?, ?, ?)`, colID, folder.Name, j(folder.Headers), j(folder.Vars))
 		if err != nil {
 			return 0, err
 		}
-		e := &Environment{
-			Name:    strings.TrimSuffix(filepath.Base(m), ".toml"),
-			Vars:    env.Vars,
-			Secrets: env.Secrets,
-		}
-		if err := s.UpsertEnvironment(e); err != nil {
+		folderIDs[folder.Name], err = res.LastInsertId()
+		if err != nil {
 			return 0, err
 		}
+	}
+	for _, request := range prepared.requests {
+		var folderID any
+		if request.folder != "" {
+			folderID = folderIDs[request.folder]
+		}
+		if _, err := tx.Exec(`INSERT INTO requests (collection_id, folder_id, name, method, url, spec, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			colID, folderID, request.spec.Name, request.spec.Method, request.spec.URL, j(request.spec), now()); err != nil {
+			return 0, err
+		}
+	}
+	for _, env := range prepared.environments {
+		if _, err := tx.Exec(`INSERT INTO environments (name, vars, secrets) VALUES (?, ?, ?)
+			ON CONFLICT(name) DO UPDATE SET vars = excluded.vars, secrets = excluded.secrets`, env.Name, j(env.Vars), j(env.Secrets)); err != nil {
+			return 0, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
 	}
 	return colID, nil
 }
 
-func (s *Store) seedCollection(root string) (int64, error) {
-	col := &Collection{Name: filepath.Base(root), Headers: map[string]string{}, Vars: map[string]string{}}
+type preparedSeed struct {
+	collection   *Collection
+	folders      []*Folder
+	requests     []preparedSeedRequest
+	environments []Environment
+}
+
+type preparedSeedRequest struct {
+	folder string
+	spec   *dsl.Request
+}
+
+func prepareSeed(root string) (*preparedSeed, error) {
+	prepared := &preparedSeed{collection: &Collection{Name: filepath.Base(root), Headers: map[string]string{}, Vars: map[string]string{}}}
 	if cfg, err := dsl.LoadConfig(filepath.Join(root, "collection.toml")); err != nil {
-		return 0, err
+		return nil, err
 	} else if cfg != nil {
 		if cfg.Name != "" {
-			col.Name = cfg.Name
+			prepared.collection.Name = cfg.Name
 		}
 		if cfg.Headers != nil {
-			col.Headers = cfg.Headers
+			prepared.collection.Headers = cfg.Headers
 		}
 		if cfg.Vars != nil {
-			col.Vars = cfg.Vars
+			prepared.collection.Vars = cfg.Vars
 		}
 	}
-	if err := s.CreateCollection(col); err != nil {
-		return 0, err
-	}
-
-	folders := map[string]*Folder{} // rel dir -> folder
+	folders := map[string]*Folder{}
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -77,16 +114,18 @@ func (s *Store) seedCollection(root string) (int64, error) {
 		if err != nil {
 			return err
 		}
+		if err := normalizeSpec(&Request{Spec: req}); err != nil {
+			return fmt.Errorf("%s: %w", path, err)
+		}
 		rel, err := filepath.Rel(root, filepath.Dir(path))
 		if err != nil {
 			return err
 		}
-		var folderID *int64
 		if rel != "." {
 			key := filepath.ToSlash(rel)
 			f, ok := folders[key]
 			if !ok {
-				f = &Folder{CollectionID: col.ID, Name: key, Headers: map[string]string{}, Vars: map[string]string{}}
+				f = &Folder{Name: key, Headers: map[string]string{}, Vars: map[string]string{}}
 				// Merge folder.toml configs along the nested path.
 				cur := root
 				for _, part := range strings.Split(rel, string(filepath.Separator)) {
@@ -102,20 +141,39 @@ func (s *Store) seedCollection(root string) (int64, error) {
 						}
 					}
 				}
-				if err := s.CreateFolder(f); err != nil {
-					return err
-				}
 				folders[key] = f
 			}
-			folderID = &f.ID
+			prepared.requests = append(prepared.requests, preparedSeedRequest{folder: key, spec: req})
+		} else {
+			prepared.requests = append(prepared.requests, preparedSeedRequest{spec: req})
 		}
 		req.Path = ""
-		return s.CreateRequest(&Request{CollectionID: col.ID, FolderID: folderID, Spec: req})
+		return nil
 	})
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return col.ID, nil
+	for _, folder := range folders {
+		prepared.folders = append(prepared.folders, folder)
+	}
+	sort.Slice(prepared.folders, func(i, j int) bool { return prepared.folders[i].Name < prepared.folders[j].Name })
+	envDir := filepath.Join(root, "environments")
+	matches, err := filepath.Glob(filepath.Join(envDir, "*.toml"))
+	if err != nil {
+		return nil, err
+	}
+	for _, match := range matches {
+		env, err := dsl.LoadEnvironment(match)
+		if err != nil {
+			return nil, err
+		}
+		name := strings.TrimSuffix(filepath.Base(match), ".toml")
+		if name == "" {
+			return nil, fmt.Errorf("%s: environment needs a name", match)
+		}
+		prepared.environments = append(prepared.environments, Environment{Name: name, Vars: env.Vars, Secrets: env.Secrets})
+	}
+	return prepared, nil
 }
 
 // CollectionExportOptions narrows a file export. FilterRequests and

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -18,8 +19,10 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 
 	"github.com/muhaymien96/relay/internal/engine"
+	"github.com/muhaymien96/relay/internal/secretstore"
 	"github.com/muhaymien96/relay/internal/store"
 	"github.com/muhaymien96/relay/internal/ui"
+	workspacepkg "github.com/muhaymien96/relay/internal/workspace"
 )
 
 // defaultWorkspace returns the OS-standard location for Relay's data:
@@ -42,36 +45,33 @@ func defaultWorkspace() string {
 // newRoot does not yet exist. This handles the one-time transition from the
 // old default. On failure it logs a message and continues; the user keeps
 // their data at the old path and a fresh database opens at newRoot.
-func migrateFromHome(newRoot string) {
+func migrateFromHome(newRoot string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return
+		return newRoot, nil
 	}
 	old := filepath.Join(home, "Relay")
 	if filepath.Clean(old) == filepath.Clean(newRoot) {
-		return // same path on this platform (e.g. some Linux setups)
+		return newRoot, nil
 	}
 	if _, err := os.Stat(filepath.Join(old, "relay.db")); err != nil {
-		return // no previous data to migrate
+		return newRoot, nil
 	}
 	if _, err := os.Stat(newRoot); err == nil {
-		return // destination already exists — never overwrite
+		return newRoot, nil
 	}
-	// Rename the whole directory. On the same filesystem (the common case:
-	// %APPDATA% and ~ are both on C:\) this is atomic and instant.
 	if err := os.MkdirAll(filepath.Dir(newRoot), 0o755); err != nil {
-		return
+		return old, fmt.Errorf("could not prepare %s: %w; continuing with existing workspace %s", newRoot, err, old)
 	}
 	if err := os.Rename(old, newRoot); err != nil {
-		fmt.Fprintf(os.Stderr,
-			"relay-app: could not migrate ~/Relay to %s: %v\n"+
-				"  Your data is still at %s — set RELAY_WORKSPACE to keep using it.\n",
-			newRoot, err, old)
+		return old, fmt.Errorf("could not migrate old workspace to %s: %w; continuing with existing workspace %s", newRoot, err, old)
 	}
+	return newRoot, nil
 }
-
 func main() {
 	workspace := flag.String("workspace", "", "workspace directory (default: $RELAY_WORKSPACE or OS app-data dir)")
+	migrateXray := flag.Bool("migrate-xray-credentials", false, "move legacy Xray credentials from SQLite to Windows Credential Manager, then exit")
+	xrayBackup := flag.String("xray-backup", "", "new full-database backup path required for --migrate-xray-credentials")
 	flag.Parse()
 
 	root := *workspace
@@ -85,7 +85,11 @@ func main() {
 		root = defaultWorkspace()
 		// One-time migration: move ~/Relay → OS app-data dir if it exists
 		// and the new location is not yet initialised.
-		migrateFromHome(root)
+		var migrationErr error
+		root, migrationErr = migrateFromHome(root)
+		if migrationErr != nil {
+			fmt.Fprintln(os.Stderr, "relay-app:", migrationErr)
+		}
 	}
 	abs, err := filepath.Abs(root)
 	if err != nil {
@@ -102,11 +106,43 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
-	if empty, err := db.Empty(); err == nil && empty {
+	if runtime.GOOS == "windows" {
+		db.SetSecretStore(secretstore.New())
+	}
+	if err := workspacepkg.RecoverMigration(abs); err != nil {
+		fmt.Fprintln(os.Stderr, "relay-app: recover workspace migration:", err)
+		os.Exit(1)
+	}
+	if *migrateXray {
+		if runtime.GOOS != "windows" {
+			fmt.Fprintln(os.Stderr, "relay-app: Xray credential migration requires Windows Credential Manager")
+			os.Exit(1)
+		}
+		if *xrayBackup == "" {
+			fmt.Fprintln(os.Stderr, "relay-app: --xray-backup is required for credential migration")
+			os.Exit(1)
+		}
+		if err := db.MigrateLegacyXrayCredentials(*xrayBackup); err != nil {
+			fmt.Fprintln(os.Stderr, "relay-app: migrate Xray credentials:", err)
+			os.Exit(1)
+		}
+		fmt.Println("Legacy SQLite Xray credentials cleared; database backup:", *xrayBackup)
+		return
+	}
+	_, markerErr := os.Stat(filepath.Join(abs, "workspace.toml"))
+	if markerErr != nil && !os.IsNotExist(markerErr) {
+		fmt.Fprintln(os.Stderr, "relay-app:", markerErr)
+		os.Exit(1)
+	}
+	if empty, err := db.Empty(); err == nil && empty && os.IsNotExist(markerErr) {
 		_, _ = db.SeedFromDir(abs)
 	}
 
-	srv := &ui.Server{DB: db, Engine: engine.NewOptions()}
+	srv := &ui.Server{DB: db, Engine: engine.NewOptions(), WorkspaceRoot: abs}
+	if err := srv.Prepare(); err != nil {
+		fmt.Fprintln(os.Stderr, "relay-app: open workspace:", err)
+		os.Exit(1)
+	}
 	err = wails.Run(&options.App{
 		Title:     "Relay — " + filepath.Base(abs),
 		Width:     1280,

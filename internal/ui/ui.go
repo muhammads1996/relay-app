@@ -11,14 +11,17 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/muhaymien96/relay/internal/adapters/tm"
@@ -31,6 +34,7 @@ import (
 	"github.com/muhaymien96/relay/internal/script"
 	"github.com/muhaymien96/relay/internal/store"
 	"github.com/muhaymien96/relay/internal/vars"
+	workspacepkg "github.com/muhaymien96/relay/internal/workspace"
 )
 
 //go:embed index.html
@@ -38,13 +42,32 @@ var indexHTML []byte
 
 // Server hosts the workbench for one store.
 type Server struct {
-	DB     *store.Store
-	Engine engine.Options
-	Getenv func(string) string
+	DB                      *store.Store
+	Engine                  engine.Options
+	Getenv                  func(string) string
+	WorkspaceRoot           string
+	workspaceMu             sync.RWMutex
+	workspace               *workspacepkg.Workspace
+	collectionIndexes       map[string]int64
+	folderIndexes           map[string]int64
+	requestIndexes          map[int64]store.WorkspaceFile
+	environmentIndexes      map[string]store.WorkspaceFile
+	workspaceScanMu         sync.Mutex
+	workspaceScan           workspaceRefreshStatus
+	workspaceFlight         *workspaceRefreshFlight
+	workspaceRefreshWaiters int
+	lastScanAttempt         time.Time
+	workspaceGeneration     uint64
+	workspaceFingerprint    string
+	cookieMu                sync.Mutex
+	cookieSession           *engine.CookieSession
+	runJobsOnce             sync.Once
+	runJobs                 *runJobManager
 }
 
 // Handler returns the HTTP handler (exported for tests).
 func (s *Server) Handler() http.Handler {
+	s.runJobsOnce.Do(func() { s.runJobs = newRunJobManager() })
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -54,6 +77,8 @@ func (s *Server) Handler() http.Handler {
 		_, _ = w.Write(indexHTML)
 	})
 	mux.HandleFunc("GET /api/state", s.handleState)
+	mux.HandleFunc("GET /api/workspace/refresh-status", s.handleWorkspaceRefreshStatus)
+	mux.HandleFunc("POST /api/workspace/refresh", s.handleWorkspaceRefresh)
 
 	mux.HandleFunc("POST /api/collections", s.handleCollectionCreate)
 	mux.HandleFunc("PATCH /api/collections/{id}", s.handleCollectionUpdate)
@@ -67,6 +92,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/requests/{id}", s.handleRequestGet)
 	mux.HandleFunc("PUT /api/requests/{id}", s.handleRequestUpdate)
 	mux.HandleFunc("DELETE /api/requests/{id}", s.handleRequestDelete)
+	mux.HandleFunc("GET /api/requests/{id}/draft", s.handleRequestDraftGet)
+	mux.HandleFunc("PUT /api/requests/{id}/draft", s.handleRequestDraftPut)
+	mux.HandleFunc("POST /api/requests/{id}/draft", s.handleRequestDraftPut)
+	mux.HandleFunc("DELETE /api/requests/{id}/draft", s.handleRequestDraftDelete)
 	mux.HandleFunc("GET /api/requests/{id}/stats", s.handleRequestStats)
 	mux.HandleFunc("GET /api/requests/{id}/curl", s.handleRequestCurl)
 
@@ -80,7 +109,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/presets/{id}", s.handlePresetDelete)
 
 	mux.HandleFunc("POST /api/send", s.handleSend)
+	mux.HandleFunc("GET /api/cookies", s.handleCookiesGet)
+	mux.HandleFunc("PUT /api/cookies", s.handleCookiesPut)
+	mux.HandleFunc("DELETE /api/cookies", s.handleCookiesDelete)
+	mux.HandleFunc("PUT /api/cookies/enabled", s.handleCookiesEnabled)
 	mux.HandleFunc("POST /api/run", s.handleRun)
+	mux.HandleFunc("POST /api/run-jobs", s.handleRunJobStart)
+	mux.HandleFunc("GET /api/run-jobs/{id}", s.handleRunJobStatus)
+	mux.HandleFunc("POST /api/run-jobs/{id}/cancel", s.handleRunJobCancel)
 
 	mux.HandleFunc("GET /api/history", s.handleHistoryList)
 	mux.HandleFunc("GET /api/history/{id}", s.handleHistoryGet)
@@ -89,6 +125,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/settings", s.handleSettingsPut)
 
 	mux.HandleFunc("POST /api/import/postman", s.handleImportPostman)
+	mux.HandleFunc("GET /api/import/postman/source/{sourceId}", s.handlePostmanSource)
+	mux.HandleFunc("GET /api/import/source/{sourceId}", s.handlePostmanSource)
+	mux.HandleFunc("GET /api/import/source/{sourceId}/report", s.handleImportSourceReport)
 	mux.HandleFunc("POST /api/import/curl", s.handleImportCurl)
 	mux.HandleFunc("POST /api/import/openapi", s.handleImportOpenAPI)
 	mux.HandleFunc("GET /api/export", s.handleExport)
@@ -126,7 +165,169 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/xray/test", s.handleXrayTestGet)
 	mux.HandleFunc("POST /api/xray/test", s.handleXrayRequestTestCreate)
 	mux.HandleFunc("POST /api/xray/requirements/link", s.handleXrayRequirementsLink)
-	return mux
+	return localOriginGuard(mux)
+}
+
+func localOriginGuard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !localHost(r.Host) {
+			http.Error(w, "invalid local host", http.StatusForbidden)
+			return
+		}
+		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
+			next.ServeHTTP(w, r)
+			return
+		}
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			if strings.EqualFold(strings.Trim(strings.Split(r.Host, ":")[0], "[]"), "wails.localhost") {
+				next.ServeHTTP(w, r)
+				return
+			}
+			host, _, err := net.SplitHostPort(r.RemoteAddr)
+			if err != nil {
+				host = r.RemoteAddr
+			}
+			ip := net.ParseIP(strings.Trim(host, "[]"))
+			if !strings.EqualFold(host, "localhost") && (ip == nil || !ip.IsLoopback()) {
+				http.Error(w, "origin required for non-local request", http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
+		if origin == "http://wails.localhost" || origin == "wails://wails.localhost" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		u, err := url.Parse(origin)
+		if err != nil || u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || (u.Scheme != "http" && u.Scheme != "https") || !strings.EqualFold(u.Host, r.Host) {
+			http.Error(w, "cross-origin request rejected", http.StatusForbidden)
+			return
+		}
+		expectedScheme := "http"
+		if r.TLS != nil {
+			expectedScheme = "https"
+		}
+		if u.Scheme != expectedScheme {
+			http.Error(w, "cross-origin request rejected", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func localHost(hostport string) bool {
+	host := hostport
+	if parsed, _, err := net.SplitHostPort(hostport); err == nil {
+		host = parsed
+	}
+	host = strings.Trim(host, "[]")
+	if strings.EqualFold(host, "localhost") || strings.EqualFold(host, "wails.localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func (s *Server) cookies() *engine.CookieSession {
+	s.cookieMu.Lock()
+	defer s.cookieMu.Unlock()
+	if s.cookieSession == nil {
+		s.cookieSession = engine.NewCookieSession()
+	}
+	return s.cookieSession
+}
+
+type cookieAPIItem struct {
+	Name     string    `json:"name"`
+	Value    string    `json:"value"`
+	Path     string    `json:"path,omitempty"`
+	Domain   string    `json:"domain,omitempty"`
+	Expires  time.Time `json:"expires,omitempty"`
+	MaxAge   int       `json:"maxAge,omitempty"`
+	Secure   bool      `json:"secure,omitempty"`
+	HTTPOnly bool      `json:"httpOnly,omitempty"`
+	SameSite int       `json:"sameSite,omitempty"`
+}
+
+func (s *Server) handleCookiesGet(w http.ResponseWriter, r *http.Request) {
+	u, err := absoluteCookieURL(r.URL.Query().Get("url"))
+	if err != nil {
+		httpError(w, 400, err)
+		return
+	}
+	cookies := s.cookies().Inspect(u)
+	items := make([]cookieAPIItem, 0, len(cookies))
+	for _, c := range cookies {
+		items = append(items, cookieAPIItem{Name: c.Name, Value: c.Value, Path: c.Path, Domain: c.Domain, Expires: c.Expires, MaxAge: c.MaxAge, Secure: c.Secure, HTTPOnly: c.HttpOnly, SameSite: int(c.SameSite)})
+	}
+	writeJSON(w, map[string]any{"enabled": s.cookies().Enabled(), "cookies": items})
+}
+
+func (s *Server) handleCookiesPut(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		URL     string          `json:"url"`
+		Cookies []cookieAPIItem `json:"cookies"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		httpError(w, 400, err)
+		return
+	}
+	u, err := absoluteCookieURL(input.URL)
+	if err != nil {
+		httpError(w, 400, err)
+		return
+	}
+	cookies := make([]*http.Cookie, 0, len(input.Cookies))
+	for _, c := range input.Cookies {
+		if strings.TrimSpace(c.Name) == "" {
+			httpError(w, 400, fmt.Errorf("cookie name is required"))
+			return
+		}
+		cookies = append(cookies, &http.Cookie{Name: c.Name, Value: c.Value, Path: c.Path, Domain: c.Domain, Expires: c.Expires, MaxAge: c.MaxAge, Secure: c.Secure, HttpOnly: c.HTTPOnly, SameSite: http.SameSite(c.SameSite)})
+	}
+	s.cookies().SetCookies(u, cookies)
+	query := url.Values{"url": {u.String()}}
+	r.URL.RawQuery = query.Encode()
+	s.handleCookiesGet(w, r)
+}
+
+func (s *Server) handleCookiesDelete(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		URL string `json:"url"`
+	}
+	if r.Body != nil && r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			httpError(w, 400, err)
+			return
+		}
+	}
+	if err := s.cookies().Clear(input.URL); err != nil {
+		httpError(w, 400, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleCookiesEnabled(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		httpError(w, 400, err)
+		return
+	}
+	s.cookies().SetEnabled(input.Enabled)
+	writeJSON(w, map[string]bool{"enabled": s.cookies().Enabled()})
+}
+
+func absoluteCookieURL(raw string) (*url.URL, error) {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return nil, fmt.Errorf("url must be absolute")
+	}
+	return u, nil
 }
 
 // ListenAndServe binds to 127.0.0.1:port (0 picks a free one) and serves
@@ -272,6 +473,12 @@ func mask(s string, scope *vars.Scope, extraSecrets []string) string {
 // references and preset secret values are masked, so the command never
 // carries secret material.
 func (s *Server) handleRequestCurl(w http.ResponseWriter, r *http.Request) {
+	if s.isVersioned() {
+		if err := s.refreshWorkspace(); err != nil {
+			httpError(w, 500, err)
+			return
+		}
+	}
 	id, err := atoi64(r.PathValue("id"))
 	if err != nil {
 		httpError(w, 400, fmt.Errorf("bad id %q", r.PathValue("id")))
@@ -281,6 +488,12 @@ func (s *Server) handleRequestCurl(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpError(w, 404, fmt.Errorf("request %d not found", id))
 		return
+	}
+	if s.isVersioned() {
+		if _, _, ok := s.canonicalRequest(id); !ok {
+			httpError(w, 404, fmt.Errorf("request %d is no longer present in workspace files", id))
+			return
+		}
 	}
 	resolved, scope, presetSecrets, err := s.resolveStored(req, r.URL.Query().Get("env"))
 	if err != nil {
@@ -305,20 +518,31 @@ func (s *Server) handleRequestCurl(w http.ResponseWriter, r *http.Request) {
 }
 
 type sendResult struct {
-	Method         string             `json:"method"`
-	URL            string             `json:"url"`
-	RequestHeaders map[string]string  `json:"requestHeaders"`
-	HeaderOrigin   map[string]string  `json:"headerOrigin"`
-	Status         int                `json:"status"`
-	StatusText     string             `json:"statusText"`
-	Proto          string             `json:"proto"`
-	Headers        map[string]string  `json:"headers"`
-	Body           string             `json:"body"`
-	Truncated      bool               `json:"truncated"`
-	Size           int64              `json:"size"`
-	Timing         map[string]float64 `json:"timing"`
-	Assertions     []assertionResult  `json:"assertions,omitempty"`
-	ScriptTests    []scriptTestResult `json:"scriptTests,omitempty"`
+	Method           string                 `json:"method"`
+	URL              string                 `json:"url"`
+	RequestHeaders   map[string]string      `json:"requestHeaders"`
+	HeaderOrigin     map[string]string      `json:"headerOrigin"`
+	Status           int                    `json:"status"`
+	StatusText       string                 `json:"statusText"`
+	Proto            string                 `json:"proto"`
+	Headers          map[string]string      `json:"headers"`
+	Body             string                 `json:"body"`
+	Truncated        bool                   `json:"truncated"`
+	Size             int64                  `json:"size"`
+	ActualBytes      int64                  `json:"actualBytes"`
+	BufferedBytes    int64                  `json:"bufferedBytes"`
+	ContentLength    int64                  `json:"contentLength"`
+	BodyComplete     bool                   `json:"bodyComplete"`
+	HistoryTruncated bool                   `json:"historyTruncated"`
+	Timing           map[string]float64     `json:"timing"`
+	Assertions       []assertionResult      `json:"assertions,omitempty"`
+	ScriptTests      []scriptTestResult     `json:"scriptTests,omitempty"`
+	Console          []scriptConsoleMessage `json:"console,omitempty"`
+}
+
+type scriptConsoleMessage struct {
+	Level   string `json:"level"`
+	Message string `json:"message"`
 }
 
 type scriptTestResult struct {
@@ -334,6 +558,12 @@ type assertionResult struct {
 }
 
 func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
+	if s.isVersioned() {
+		if err := s.refreshWorkspace(); err != nil {
+			httpError(w, 500, err)
+			return
+		}
+	}
 	var in struct {
 		RequestID int64  `json:"requestId"`
 		Env       string `json:"env"`
@@ -346,6 +576,12 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpError(w, 404, fmt.Errorf("request %d not found", in.RequestID))
 		return
+	}
+	if s.isVersioned() {
+		if _, _, ok := s.canonicalRequest(in.RequestID); !ok {
+			httpError(w, 404, fmt.Errorf("request %d is no longer present in workspace files", in.RequestID))
+			return
+		}
 	}
 	out, status, err := s.execute(r.Context(), req, in.Env, true)
 	if err != nil {
@@ -361,11 +597,23 @@ func (s *Server) execute(ctx context.Context, req *store.Request, envName string
 }
 
 func (s *Server) executeWithSession(ctx context.Context, req *store.Request, envName string, record bool, sessionVars map[string]string) (*sendResult, int, error) {
+	if s.isVersioned() {
+		if _, _, ok := s.canonicalRequest(req.ID); !ok {
+			return nil, 404, fmt.Errorf("request %d is no longer present in workspace files", req.ID)
+		}
+		if envName != "" {
+			if _, _, ok := s.canonicalEnv(envName); !ok {
+				return nil, 404, fmt.Errorf("environment %q is no longer present in workspace files", envName)
+			}
+		}
+	}
 	resolved, scope, presetSecrets, err := s.resolveStoredWithSession(req, envName, sessionVars)
 	if err != nil {
 		return nil, 422, err
 	}
-	result, err := engine.Send(ctx, resolved, s.engineOptions())
+	engineOpts := s.engineOptions()
+	engineOpts.Cookies = s.cookies()
+	result, err := engine.Send(ctx, resolved, engineOpts)
 	if err != nil {
 		return nil, 502, err
 	}
@@ -386,6 +634,11 @@ func (s *Server) executeWithSession(ctx context.Context, req *store.Request, env
 		Proto:          result.Proto,
 		Headers:        map[string]string{},
 		Size:           result.Size,
+		ActualBytes:    result.ActualBytes,
+		BufferedBytes:  result.BufferedBytes,
+		ContentLength:  result.ContentLength,
+		BodyComplete:   result.BodyComplete,
+		Truncated:      result.Truncated,
 		Timing: map[string]float64{
 			"dns":      ms(result.Timing.DNS),
 			"connect":  ms(result.Timing.Connect),
@@ -404,7 +657,7 @@ func (s *Server) executeWithSession(ctx context.Context, req *store.Request, env
 	const uiBodyCap = 2 << 20
 	body := result.Body
 	if len(body) > uiBodyCap {
-		body, out.Truncated = body[:uiBodyCap], true
+		body, out.Truncated, out.BodyComplete = body[:uiBodyCap], true, false
 	}
 	out.Body = string(body)
 	for _, o := range outcomes {
@@ -424,6 +677,12 @@ func (s *Server) executeWithSession(ctx context.Context, req *store.Request, env
 					envVars[k] = v
 				}
 			}
+		}
+		// Environment secrets are available to scripts through the same
+		// pm.environment.get API as regular environment values. They are
+		// still masked before any console output is returned to the UI.
+		for k, v := range scope.SecretValues() {
+			envVars[k] = v
 		}
 		colVars := map[string]string{}
 		if col, err := s.DB.Collection(req.CollectionID); err == nil {
@@ -458,10 +717,15 @@ func (s *Server) executeWithSession(ctx context.Context, req *store.Request, env
 			DurationMs: out.Timing["total"],
 		})
 		for _, t := range sr.Tests {
-			out.ScriptTests = append(out.ScriptTests, scriptTestResult{Name: t.Name, Passed: t.Passed, Error: t.Error})
+			out.ScriptTests = append(out.ScriptTests, scriptTestResult{Name: t.Name, Passed: t.Passed, Error: mask(t.Error, scope, presetSecrets)})
+		}
+		for _, message := range sr.Console {
+			out.Console = append(out.Console, scriptConsoleMessage{
+				Level: message.Level, Message: mask(message.Message, scope, presetSecrets),
+			})
 		}
 		for _, errMsg := range sr.Errors {
-			out.ScriptTests = append(out.ScriptTests, scriptTestResult{Name: "Script runtime", Passed: false, Error: errMsg})
+			out.ScriptTests = append(out.ScriptTests, scriptTestResult{Name: "Script runtime", Passed: false, Error: mask(errMsg, scope, presetSecrets)})
 		}
 		for k, v := range sr.UpdatedVars {
 			if sessionVars != nil {
@@ -471,6 +735,7 @@ func (s *Server) executeWithSession(ctx context.Context, req *store.Request, env
 	}
 
 	if record {
+		out.HistoryTruncated = int64(len(body)) > store.MaxHistoryBody
 		_ = s.DB.AddHistory(&store.HistoryEntry{
 			RequestID:   &req.ID,
 			RequestName: req.Spec.Name,
@@ -488,19 +753,27 @@ func (s *Server) executeWithSession(ctx context.Context, req *store.Request, env
 }
 
 type runResult struct {
-	RequestID   int64              `json:"requestId"`
-	Name        string             `json:"name"`
-	Method      string             `json:"method"`
-	URL         string             `json:"url"`
-	Status      int                `json:"status"`
-	DurationMs  float64            `json:"durationMs"`
-	Passed      bool               `json:"passed"`
-	Error       string             `json:"error,omitempty"`
-	Assertions  []assertionResult  `json:"assertions,omitempty"`
-	ScriptTests []scriptTestResult `json:"scriptTests,omitempty"`
+	RequestID          int64              `json:"requestId"`
+	Name               string             `json:"name"`
+	Method             string             `json:"method"`
+	URL                string             `json:"url"`
+	Status             int                `json:"status"`
+	DurationMs         float64            `json:"durationMs"`
+	Passed             bool               `json:"passed"`
+	Error              string             `json:"error,omitempty"`
+	Cancelled          bool               `json:"cancelled,omitempty"`
+	CancellationReason string             `json:"cancellationReason,omitempty"`
+	Assertions         []assertionResult  `json:"assertions,omitempty"`
+	ScriptTests        []scriptTestResult `json:"scriptTests,omitempty"`
 }
 
 func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
+	if s.isVersioned() {
+		if err := s.refreshWorkspace(); err != nil {
+			httpError(w, 500, err)
+			return
+		}
+	}
 	var in struct {
 		CollectionID int64  `json:"collectionId"`
 		Env          string `json:"env"`
@@ -513,6 +786,19 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	if err != nil || len(requests) == 0 {
 		httpError(w, 404, fmt.Errorf("collection %d has no requests", in.CollectionID))
 		return
+	}
+	if s.isVersioned() {
+		current := requests[:0]
+		for _, req := range requests {
+			if _, _, ok := s.canonicalRequest(req.ID); ok {
+				current = append(current, req)
+			}
+		}
+		requests = current
+		if len(requests) == 0 {
+			httpError(w, 404, fmt.Errorf("collection %d has no requests in workspace files", in.CollectionID))
+			return
+		}
 	}
 
 	var results []runResult
@@ -590,26 +876,150 @@ func (s *Server) handleImportPostman(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer os.RemoveAll(tmp)
-	n, err := porter.ImportPostman(data, tmp)
+	report, err := porter.ImportPostmanWithReport(data, tmp)
 	if err != nil {
 		httpError(w, 422, err)
 		return
 	}
-	colID, err := s.DB.SeedFromDir(tmp)
+	if report.Warnings == nil {
+		report.Warnings = []porter.ImportWarning{}
+	}
+	if s.isVersioned() {
+		if err = workspacepkg.ValidateImportDirectory(tmp); err != nil {
+			httpError(w, 422, err)
+			return
+		}
+	}
+	if r.URL.Query().Get("preview") == "1" {
+		if s.isVersioned() {
+			if err = s.refreshWorkspace(); err != nil {
+				httpError(w, 500, err)
+				return
+			}
+			reportValue, _ := json.Marshal(report)
+			var response map[string]any
+			_ = json.Unmarshal(reportValue, &response)
+			response["workspaceHash"] = s.currentWorkspace().Manifest.Hash
+			writeJSON(w, response)
+			return
+		}
+		writeJSON(w, report)
+		return
+	}
+	reportJSON, err := json.Marshal(report)
 	if err != nil {
 		httpError(w, 500, err)
 		return
 	}
-	writeJSON(w, map[string]any{"collectionId": colID, "requests": n})
+	if s.isVersioned() {
+		if err = s.refreshWorkspace(); err != nil {
+			httpError(w, 500, err)
+			return
+		}
+		expected := r.URL.Query().Get("workspaceHash")
+		if expected == "" {
+			expected = r.Header.Get("X-Workspace-Hash")
+		}
+		if expected == "" || expected != s.currentWorkspace().Manifest.Hash {
+			httpError(w, 409, fmt.Errorf("workspaceHash is missing or stale; reload the workspace before importing"))
+			return
+		}
+		storedReport, _ := json.Marshal(map[string]any{"format": "postman", "report": report})
+		sourceID, err := s.DB.SaveImportSource(data, storedReport)
+		if err != nil {
+			httpError(w, 500, err)
+			return
+		}
+		created, err := s.currentWorkspace().ImportDirectory(tmp, expected)
+		if err != nil {
+			status := 422
+			if errors.Is(err, workspacepkg.ErrConflict) {
+				status = 409
+			} else if !strings.Contains(err.Error(), "credential") && !strings.Contains(err.Error(), "unsafe") && !strings.Contains(err.Error(), "validation") && !strings.Contains(err.Error(), "already exists") {
+				status = 500
+			}
+			writeJSONStatus(w, status, map[string]any{"error": err.Error(), "sourceId": sourceID, "requests": report.Requests, "warnings": report.Warnings})
+			return
+		}
+		if err = s.refreshWorkspace(); err != nil {
+			writeJSONStatus(w, 500, map[string]any{"error": fmt.Sprintf("files committed; SQLite index refresh required: %v", err), "sourceId": sourceID})
+			return
+		}
+		indexed, err := s.DB.WorkspaceFileByStableID("collection", created.ID)
+		if err != nil {
+			writeJSONStatus(w, 500, map[string]any{"error": fmt.Sprintf("files committed; SQLite index refresh required: %v", err), "sourceId": sourceID})
+			return
+		}
+		ws := s.currentWorkspace()
+		writeJSON(w, map[string]any{"collectionId": indexed.SQLiteID, "fileId": created.ID, "workspaceHash": ws.Manifest.Hash, "sourceId": sourceID, "requests": report.Requests, "warnings": report.Warnings})
+		return
+	}
+	sourceID, err := s.DB.SaveImportSource(data, reportJSON)
+	if err != nil {
+		httpError(w, 500, err)
+		return
+	}
+	colID, err := s.DB.SeedFromDir(tmp)
+	if err != nil {
+		// Keep the source in the workspace even when a commit fails so a
+		// user can recover the original import after diagnosing the failure.
+		w.WriteHeader(http.StatusInternalServerError)
+		writeJSON(w, map[string]any{"error": err.Error(), "sourceId": sourceID, "requests": report.Requests, "warnings": report.Warnings})
+		return
+	}
+	writeJSON(w, map[string]any{
+		"collectionId": colID,
+		"sourceId":     sourceID,
+		"requests":     report.Requests,
+		"warnings":     report.Warnings,
+	})
+}
+
+func (s *Server) handlePostmanSource(w http.ResponseWriter, r *http.Request) {
+	source, err := s.DB.ImportSource(r.PathValue("sourceId"))
+	if err != nil {
+		if errors.Is(err, store.ErrImportSourceNotFound) {
+			httpError(w, http.StatusNotFound, err)
+			return
+		}
+		httpError(w, http.StatusInternalServerError, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	filename := "import-original.json"
+	if strings.HasPrefix(r.URL.Path, "/api/import/postman/source/") {
+		filename = "postman-original.json"
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename=%q`, filename))
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(source)
+}
+
+func (s *Server) handleImportSourceReport(w http.ResponseWriter, r *http.Request) {
+	report, err := s.DB.ImportSourceReport(r.PathValue("sourceId"))
+	if err != nil {
+		if errors.Is(err, store.ErrImportSourceNotFound) {
+			httpError(w, http.StatusNotFound, err)
+			return
+		}
+		httpError(w, http.StatusInternalServerError, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(report)
 }
 
 // handleImportCurl parses a pasted curl command into a new request in the
 // given collection.
 func (s *Server) handleImportCurl(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		CollectionID int64  `json:"collectionId"`
-		FolderID     *int64 `json:"folderId"`
-		Curl         string `json:"curl"`
+		CollectionID  int64  `json:"collectionId"`
+		FolderID      *int64 `json:"folderId"`
+		Curl          string `json:"curl"`
+		WorkspaceHash string `json:"workspaceHash"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		httpError(w, 400, err)
@@ -618,6 +1028,75 @@ func (s *Server) handleImportCurl(w http.ResponseWriter, r *http.Request) {
 	spec, err := porter.ParseCurl(in.Curl)
 	if err != nil {
 		httpError(w, 422, err)
+		return
+	}
+	if s.isVersioned() {
+		if err := s.refreshWorkspace(); err != nil {
+			httpError(w, 500, err)
+			return
+		}
+		ws := s.currentWorkspace()
+		if in.WorkspaceHash == "" || in.WorkspaceHash != ws.Manifest.Hash {
+			httpError(w, 409, fmt.Errorf("workspaceHash is missing or stale; reload the workspace before importing"))
+			return
+		}
+		if r.URL.Query().Get("preview") == "1" {
+			writeJSON(w, map[string]any{"request": spec, "workspaceHash": ws.Manifest.Hash})
+			return
+		}
+		if in.CollectionID == 0 {
+			collections, err := s.DB.Collections()
+			if err != nil {
+				httpError(w, 500, err)
+				return
+			}
+			if len(collections) != 1 {
+				httpError(w, 422, fmt.Errorf("select a collection before importing curl into a multi-collection workspace"))
+				return
+			}
+			in.CollectionID = collections[0].ID
+		}
+		collection, err := s.DB.WorkspaceFileBySQLiteID("collection", in.CollectionID)
+		if err != nil {
+			httpError(w, 422, fmt.Errorf("collection is not indexed from workspace files"))
+			return
+		}
+		folderStableID := ""
+		if in.FolderID != nil {
+			folder, err := s.DB.WorkspaceFileBySQLiteID("folder", *in.FolderID)
+			if err != nil {
+				httpError(w, 422, fmt.Errorf("folder is not indexed from workspace files"))
+				return
+			}
+			folderStableID = folder.FileID
+		}
+		stableID := workspacepkg.NewID()
+		path, err := ws.NewRequestPath(collection.FileID, folderStableID, spec.Name)
+		if err != nil {
+			httpError(w, 422, err)
+			return
+		}
+		fileRequest := workspacepkg.Request{ID: stableID, CollectionID: collection.FileID, FolderID: folderStableID, Path: path, Request: *spec}
+		contentHash, err := ws.SaveRequest(fileRequest, "")
+		if err != nil {
+			httpError(w, 422, err)
+			return
+		}
+		if err = s.refreshWorkspace(); err != nil {
+			httpError(w, 500, fmt.Errorf("request file committed; index refresh required: %w", err))
+			return
+		}
+		indexed, err := s.DB.WorkspaceFileByStableID("request", stableID)
+		if err != nil {
+			httpError(w, 500, fmt.Errorf("request file committed; index refresh required: %w", err))
+			return
+		}
+		created, err := s.DB.Request(indexed.SQLiteID)
+		if err != nil {
+			httpError(w, 500, fmt.Errorf("request file committed; index refresh required: %w", err))
+			return
+		}
+		writeJSON(w, requestAPI{Request: *created, FileID: stableID, ContentHash: contentHash})
 		return
 	}
 	if in.CollectionID == 0 {
@@ -908,6 +1387,58 @@ func (s *Server) handleImportOpenAPI(w http.ResponseWriter, r *http.Request) {
 	n, err := porter.ImportOpenAPI(data, tmp)
 	if err != nil {
 		httpError(w, 422, err)
+		return
+	}
+	if s.isVersioned() {
+		if err = workspacepkg.ValidateImportDirectory(tmp); err != nil {
+			httpError(w, 422, err)
+			return
+		}
+	}
+	if s.isVersioned() {
+		if err = s.refreshWorkspace(); err != nil {
+			httpError(w, 500, err)
+			return
+		}
+		if r.URL.Query().Get("preview") == "1" {
+			writeJSON(w, map[string]any{"requests": n, "workspaceHash": s.currentWorkspace().Manifest.Hash})
+			return
+		}
+		expected := r.URL.Query().Get("workspaceHash")
+		if expected == "" {
+			expected = r.Header.Get("X-Workspace-Hash")
+		}
+		if expected == "" || expected != s.currentWorkspace().Manifest.Hash {
+			httpError(w, 409, fmt.Errorf("workspaceHash is missing or stale; reload the workspace before importing"))
+			return
+		}
+		storedReport, _ := json.Marshal(map[string]any{"format": "openapi", "requests": n})
+		sourceID, err := s.DB.SaveImportSource(data, storedReport)
+		if err != nil {
+			httpError(w, 500, err)
+			return
+		}
+		created, err := s.currentWorkspace().ImportDirectory(tmp, expected)
+		if err != nil {
+			status := 422
+			if errors.Is(err, workspacepkg.ErrConflict) {
+				status = 409
+			} else if !strings.Contains(err.Error(), "credential") && !strings.Contains(err.Error(), "unsafe") && !strings.Contains(err.Error(), "validation") && !strings.Contains(err.Error(), "already exists") {
+				status = 500
+			}
+			writeJSONStatus(w, status, map[string]any{"error": err.Error(), "sourceId": sourceID, "requests": n})
+			return
+		}
+		if err = s.refreshWorkspace(); err != nil {
+			writeJSONStatus(w, 500, map[string]any{"error": fmt.Sprintf("files committed; SQLite index refresh required: %v", err), "sourceId": sourceID})
+			return
+		}
+		indexed, err := s.DB.WorkspaceFileByStableID("collection", created.ID)
+		if err != nil {
+			writeJSONStatus(w, 500, map[string]any{"error": fmt.Sprintf("files committed; SQLite index refresh required: %v", err), "sourceId": sourceID})
+			return
+		}
+		writeJSON(w, map[string]any{"collectionId": indexed.SQLiteID, "fileId": created.ID, "workspaceHash": s.currentWorkspace().Manifest.Hash, "sourceId": sourceID, "requests": n})
 		return
 	}
 	colID, err := s.DB.SeedFromDir(tmp)
@@ -1383,6 +1914,12 @@ func ms(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }
 
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func writeJSONStatus(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
 

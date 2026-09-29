@@ -8,9 +8,9 @@
 <style>
   :root {
     --bg: #f4f5fa; --panel: #ffffff; --line: #e6e8f2; --line2: #d9dcea;
-    --fg: #1c1f33; --dim: #7c819a; --faint: #a4a8bd;
+    --fg: #1c1f33; --dim: #62677c; --faint: #70768b;
     --ink: #28287a; --ink-hover: #1d1d5e; --ink-soft: #eceefc;
-    --green: #0e9f6e; --red: #d64545; --amber: #c26a1b; --blue: #2563eb; --purple: #7c3aed;
+    --green: #0b6b4f; --red: #b42323; --amber: #8a4b08; --blue: #2563eb; --purple: #7c3aed;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --radius: 10px;
   }
@@ -21,8 +21,9 @@
          display: flex; flex-direction: column; }
   #app { flex: 1; display: flex; min-height: 0; }
   button { font: inherit; cursor: pointer; }
+  :focus-visible { outline: 3px solid #2563eb !important; outline-offset: 2px; }
   input, select, textarea { font: inherit; color: var(--fg); }
-  input[type=text], input[type=password], input[type=email], select, textarea {
+  input[type=text], input[type=password], input[type=email], input[type=search], select, textarea {
     border: 1px solid var(--line2); border-radius: 8px; padding: 7px 10px;
     background: #fff; outline: none; min-height: 34px;
     transition: border-color .14s ease, box-shadow .14s ease, background .14s ease; }
@@ -60,6 +61,25 @@
   #sideHead button { margin-left: auto; border: 0; background: none; color: var(--dim); font-size: 16px; }
   #sideHead button:hover { color: var(--ink); }
   #sideList { flex: 1; overflow: auto; padding: 2px 8px 12px; }
+  #collectionSearchWrap { position:relative; padding:6px 8px; gap:5px; align-items:center; }
+  #collectionSearchWrap:not([hidden]) { display:flex; }
+  #collectionSearch { min-width:0; width:100%; padding-right:98px; }
+  #collectionSearchWrap kbd { position:absolute; right:32px; color:var(--dim); font:9px var(--mono); pointer-events:none; background:#fff; padding-left:3px; }
+  #clearCollectionSearch { position:absolute; right:9px; border:0; background:transparent; color:var(--dim); cursor:pointer; }
+  .requestTabs { display:flex; align-items:center; gap:3px; min-height:36px; padding:3px 8px; background:var(--panel); border-bottom:1px solid var(--line); overflow-x:auto; }
+  .requestTab { flex:0 0 auto; display:flex; align-items:center; gap:8px; max-width:230px; border:1px solid transparent; border-radius:7px 7px 0 0; padding:6px 8px; background:transparent; cursor:pointer; color:var(--dim); }
+  .requestTab[aria-selected=true] { border-color:var(--line); border-bottom-color:var(--panel); background:var(--panel); color:var(--fg); }
+  .requestTab .tabName { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .requestTab .tabEnv { max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--dim); font-size:11px; }
+  .requestTab .tabDirty { color:var(--amber); font-weight:800; }
+  .requestTabClose { border:0; background:transparent; color:inherit; cursor:pointer; padding:1px 4px; border-radius:4px; }
+  .requestTabClose:hover { background:var(--line); }
+  .colRow > .runBtn:last-child { display:none !important; }
+  .reqHead > [aria-label="Delete request"] { display:none !important; }
+  .startPanel { max-width:760px; margin:7vh auto; padding:26px; background:var(--panel); border:1px solid var(--line); border-radius:14px; text-align:left; }
+  .startPanel h1 { margin:0 0 6px; font-size:23px; }
+  .startPanel p { color:var(--dim); margin:0 0 18px; line-height:1.5; }
+  .startActions { display:flex; flex-wrap:wrap; gap:8px; }
   .colRow { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 7px;
             cursor: pointer; font-weight: 600; }
   .colRow:hover { background: var(--ink-soft); }
@@ -111,6 +131,15 @@
     min-width: 0; min-height: 0; height: 100%; overflow: hidden;
   }
   .requestWorkspace > .card { min-height: 0; }
+  .orderedEntryEditor { min-width: 0; }
+  .orderedEntries { table-layout: fixed; }
+  .orderedEntries th:first-child, .orderedEntries td:first-child { width: 42px; text-align: center; }
+  .orderedEntries th:last-child, .orderedEntries td:last-child { width: 92px; }
+  .orderedActions { white-space: nowrap; }
+  .orderedActions button { margin-right: 2px; }
+  .orderedEntryTools { display:flex; gap:8px; margin-top:8px; }
+  .tmRequestSummary { display:flex; align-items:center; gap:10px; min-width:0; padding:9px 12px; margin-bottom:8px; background:var(--panel); border:1px solid var(--line); border-radius:8px; }
+  .tmRequestSummary .tmUrl { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
   .requestEditor { overflow: auto; scrollbar-gutter: stable; }
   .paneSplitter {
     position: relative; z-index: 2; min-height: 12px; border: 0; outline: 0;
@@ -134,6 +163,7 @@
 
   /* request editor */
   #urlRow { display: flex; gap: 10px; padding: 12px; align-items: center; }
+  .srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
   #method { font-family: var(--mono); font-weight: 700; width: 96px; height: 38px; }
   #url { flex: 1; font-family: var(--mono); font-size: 13px; height: 38px; padding: 8px 12px; line-height: 20px; }
   .reqHead { padding: 12px 12px 0; display: flex; align-items: center; gap: 8px; }
@@ -230,7 +260,7 @@
   .formRow input[type=checkbox] { flex: 0 0 auto; width: auto; max-width: none; }
 
   /* response */
-  #respMeta { display: flex; gap: 16px; align-items: baseline; padding: 10px 14px;
+  #respMeta { display: flex; flex-wrap:wrap; gap: 10px 14px; align-items: baseline; padding: 10px 14px;
               border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12.5px; }
   #respMeta .lbl { font-size: 10px; letter-spacing: .1em; color: var(--dim); font-weight: 700; }
   .pill { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
@@ -262,7 +292,15 @@
   .iconBtn { border: 1px solid var(--line2); background: #fff; border-radius: 7px; padding: 3px 10px;
              color: var(--dim); font-size: 11.5px; font-weight: 600; font-family: "Inter", system-ui, sans-serif; }
   .iconBtn:hover { color: var(--ink); border-color: var(--ink); }
-  #respMeta .actions { margin-left: auto; display: flex; gap: 6px; }
+  #respMeta .actions { margin-left: auto; display: flex; flex-wrap:wrap; gap: 6px; align-items:center; }
+  #respMeta .responseSearch { width:145px; min-width:105px; min-height:30px; padding:4px 8px; font-size:11px; }
+  .responseSearchHit { background:#ffea85; color:#1c1f33; border-radius:2px; }
+  .responseSearchHit.current { outline:2px solid #28287a; }
+  .historyView .note, .historyView .histRow small { color:var(--dim); font-size:12px; }
+  .historyView .histRow { font-size:13px; }
+  .historyView .histRow .pill, .historyView .histRow .method { font-size:12px; }
+  .importForm { width:100%; min-width:0; }
+  .importForm textarea { width:100%; min-width:0; max-width:100%; box-sizing:border-box; }
   .formatBadge { border: 1px solid var(--line2); border-radius: 99px; padding: 1px 7px;
                  color: var(--dim); font-size: 10px; font-weight: 750; letter-spacing: .05em; }
   .formatDropdown { position: relative; }
@@ -365,10 +403,14 @@
                   text-transform: uppercase; }
   .sumCard b { font-size: 20px; font-family: var(--mono); }
   .sumCard.green { border-left-color: var(--green); } .sumCard.red { border-left-color: var(--red); }
+  .sumCard.neutral { border-left-color: #596579; }
   .runRow { display: flex; align-items: center; gap: 10px; padding: 10px 14px;
             border-bottom: 1px solid var(--line); }
   .runRow .ic { font-weight: 800; }
   .runRow .ic.ok { color: var(--green); } .runRow .ic.bad { color: var(--red); }
+  .runRow .ic.cancelled { color: #596579; }
+  .runCancelled { font-family: var(--mono); font-size: 12px; color: #465161; background: #f3f5f8;
+                  border: 1px solid #d9dee7; border-radius: 7px; padding: 8px 12px; margin: 0 14px 10px 38px; }
   .runErr { font-family: var(--mono); font-size: 12px; color: var(--red); background: #fdf3f3;
             border: 1px solid #f3d4d4; border-radius: 7px; padding: 8px 12px; margin: 0 14px 10px 38px; }
   .xrayCard { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #f1f2f9;
@@ -376,6 +418,7 @@
   .badge { font-size: 10px; font-weight: 800; letter-spacing: .05em; border-radius: 4px; padding: 2px 8px; }
   .badge.fail { background: #fdecec; color: var(--red); border: 1px solid #f3c8c8; }
   .badge.pass { background: #e7f7f0; color: var(--green); border: 1px solid #c4ebd9; }
+  .badge.cancelled { background: #f0f2f6; color: #465161; border: 1px solid #d9dee7; }
 
   /* test management */
   .tmShell { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; width: 100%; min-width: 0; }
@@ -570,24 +613,40 @@
     .tmGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
   @media (max-width: 760px) {
-    body.tmMode #app { flex-direction: column; overflow-x: hidden; }
-    body.tmMode #rail { width: 100%; min-height: 0; flex-direction: row; flex-wrap: wrap; padding: 8px; border-right: 0; border-bottom: 1px solid var(--line); }
-    body.tmMode #brand { width: 100%; padding-bottom: 4px; }
+    body.tmMode #app { flex-direction: row; overflow: hidden; }
+    body.tmMode #rail { flex: 0 0 48px; width: 48px; min-height: 0; flex-direction: column; flex-wrap: nowrap; align-items: stretch; overflow: auto; padding: 10px 5px; border-right: 1px solid var(--line); border-bottom: 0; }
+    body.tmMode #brand { justify-content: center; padding: 0 0 8px; }
+    body.tmMode .brandName, body.tmMode .navLabel { display: none !important; }
     body.tmMode #newReq { display: none; }
-    body.tmMode .navItem { width: auto; padding: 6px 8px; }
-    body.tmMode #railSpace { display: none; }
-    body.tmMode #side { width: 100%; max-height: 280px; border-right: 0; border-bottom: 1px solid var(--line); }
-    body.tmMode #main { width: 100%; min-width: 0; }
-    body.tmMode #content { flex-direction: column; min-width: 0; }
-    body.tmMode #meta { width: auto; }
-    body.tmMode #work { min-width: 0; padding: 12px; }
+    body.tmMode .navItem { flex: 0 0 38px; width: 38px; justify-content: center; padding: 6px 3px; }
+    body.tmMode #railSpace { display: block; }
+    body.tmMode #side { display: none; position: fixed; left: 48px; top: 0; bottom: 24px; z-index: 600; flex: 0 0 min(300px, calc(100vw - 60px)); width: min(300px, calc(100vw - 60px)); max-height: none; border-right: 1px solid var(--line); border-bottom: 0; box-shadow: 12px 0 32px rgba(28,31,51,.18); }
+    body.tmMode.tree-open #side { display: flex; }
+    body.tmMode #treeToggle { display: inline-flex; }
+    body.tmMode #treeResize { display: none; }
+    body.tmMode #main { flex: 1 1 auto; width: auto; min-width: 0; min-height: 0; }
+    body.tmMode #content { display: block; min-width: 0; height: calc(100% - 48px); overflow: auto; }
+    body.tmMode #meta { display: none !important; }
+    body.tmMode #work { min-width: 0; padding: 8px; }
+    body.tmMode #topbar { flex-wrap: nowrap; min-height: 44px; gap: 5px; padding: 4px 7px; overflow-x: auto; }
+    body.tmMode #topbar .grow { flex: 0 0 0; min-width: 0; }
+    body.tmMode #topbar .tmTopBtn:not(.tmCreateMenu) { display: none; }
+    body.tmMode #topbar .tmCreateMenu { display: inline-flex; }
+    body.tmMode #topbar #envSel { flex: 0 1 112px; min-width: 82px; }
+    body.tmMode .tmSuiteTools, body.tmMode .tmSuiteSearch, body.tmMode .tmFilterChips { display: none !important; }
+    body.tmMode #sideHead { display: flex; align-items: center; }
+    body.tmMode #treeClose, body.tmMode #sideHead #treeClose { display: inline-flex; }
+    body.tmMode .tmEditor { grid-template-columns: minmax(0, 1fr); }
+    body.tmMode .tmFormGrid { grid-template-columns: minmax(0, 1fr); }
     .tmCardHead { align-items: stretch; flex-direction: column; }
     .tmFormGrid { grid-template-columns: 1fr; }
     .tmGrid { grid-template-columns: 1fr; }
     .tmHero { flex-direction: column; }
     .tmActions { justify-content: flex-start; }
-    .tmSuiteTools { grid-template-columns: 1fr; }
     .tmTestTreeRow, .tmTestRow { grid-template-columns: auto auto minmax(0, 1fr); }
+  }
+  @media (max-width: 760px) {
+    body.tmMode.tree-open::after { content: ""; position: fixed; inset: 0 0 24px 48px; z-index: 599; background: rgba(20,23,38,.22); }
   }
 
   /* footer */
@@ -704,9 +763,9 @@
   .modal-overlay.open { display: flex; }
   .modal-box { background: var(--panel); border: 1px solid var(--line2); border-radius: var(--radius);
                padding: 24px; min-width: 340px; max-width: 460px; width: calc(100% - 32px);
-               box-shadow: 0 16px 48px rgba(0,0,0,.18); }
+               max-height: calc(100% - 32px); overflow-y: auto; box-shadow: 0 16px 48px rgba(0,0,0,.18); }
   .modal-title { font-weight: 700; font-size: 15px; margin: 0 0 12px; }
-  .modal-msg { color: var(--fg); margin: 0 0 20px; line-height: 1.5; }
+  .modal-msg { color: var(--fg); margin: 0 0 20px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
   #modalInput { width: 100%; margin-bottom: 18px; }
   #modalInputArea { width: 100%; min-height: 220px; margin-bottom: 18px; resize: vertical; font-family: var(--mono); }
   .modal-choices { display: flex; flex-direction: column; gap: 5px; margin-bottom: 18px; }
@@ -808,6 +867,12 @@
     flex-wrap: wrap; overflow: auto; scrollbar-gutter: stable;
   }
   #statusbar > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #workspaceRefresh { border: 0; background: transparent; color: var(--ink); font: inherit;
+    text-decoration: underline; text-underline-offset: 2px; cursor: pointer; padding: 2px 0; }
+  #workspaceRefresh:hover { color: var(--blue); }
+  #workspaceRefresh:disabled { color: var(--dim); cursor: wait; text-decoration: none; }
+  #workspaceRefreshStatus.error { color: var(--red); }
+  .treeMore { color: var(--blue); font-weight: 600; }
   .modal-overlay { overflow: auto; padding: 16px; align-items: flex-start; }
   .modal-box { max-height: calc(100vh - 32px); overflow: auto; }
   #modalInputArea { max-height: 52vh; overflow: auto; }
@@ -915,32 +980,106 @@
     body:not(.tmMode) #work { padding: 10px; }
     body:not(.tmMode) #meta { max-height: 220px; }
   }
+
+  /* Relay workbench: the request surface owns the width; navigation stays close at hand. */
+  body.rail-collapsed #rail { flex: 0 0 48px; width: 48px; padding: 12px 5px; }
+  body.rail-collapsed #brand { justify-content: center; padding: 0 0 10px; flex-wrap: wrap; }
+  body.rail-collapsed .brandName, body.rail-collapsed #newReq, body.rail-collapsed .navLabel { display: none; }
+  body.rail-collapsed .navItem { justify-content: center; padding: 9px 4px; }
+  body.rail-collapsed .navIcon { font-size: 16px; }
+  #railToggle { margin-left: auto; flex: 0 0 auto; padding: 3px 6px; }
+  body.rail-collapsed #railToggle { margin: 0; }
+  #treeResize { flex: 0 0 5px; width: 5px; cursor: col-resize; touch-action: none; background: transparent; position: relative; z-index: 3; }
+  #treeResize::after { content: ""; position: absolute; inset: 0 2px; background: var(--line2); }
+  #treeResize:hover::after, #treeResize:focus-visible::after { background: var(--ink); }
+  body.resizingTree { cursor: col-resize; user-select: none; }
+  #side { flex: 0 0 var(--side-width, 220px); width: var(--side-width, 220px); }
+  #sideList[role=tree] { outline: none; }
+  .colRow[role=treeitem], .folderRow[role=treeitem], .reqRow[role=treeitem] { cursor: pointer; }
+  .colRow[role=treeitem]:focus-visible, .folderRow[role=treeitem]:focus-visible, .reqRow[role=treeitem]:focus-visible { outline-offset: -2px; }
+  body:not(.meta-open):not(.tmMode) #meta { display: none !important; }
+  body.meta-open:not(.tmMode) #meta { display: block; position: absolute; top: 0; right: 0; bottom: 0; z-index: 40; width: min(270px, calc(100% - 16px)); box-shadow: -12px 0 32px rgba(28,31,51,.16); }
+  #content { position: relative; }
+  #treeToggle, #treeClose { display: none; }
+  .colRow .colLabel { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .colRow .runBtn { opacity: 0; pointer-events: none; transition: opacity .12s ease; }
+  .colRow:hover .runBtn, .colRow:focus-within .runBtn { opacity: 1; pointer-events: auto; }
+  #metaToggle[aria-expanded=true] { color: var(--ink); border-color: var(--ink); background: var(--ink-soft); }
+  .tabs [role=tab][aria-selected=true] { color: var(--ink); border-bottom: 2px solid var(--ink); }
+  #toast { min-width: 220px; }
+  .note, small, .lbl { color: var(--dim); font-size: 12px !important; }
+  #statusbar { font-size: 12px; }
+  #sideHead h2 { font-size: 12px; letter-spacing: .04em; }
+  .formRow label { color: var(--fg); }
+  .navItem.on { color: var(--ink); }
+  @media (max-width: 760px) {
+    body:not(.tmMode) #app { flex-direction: row; overflow: hidden; }
+    body:not(.tmMode) #rail { flex: 0 0 48px; width: 48px; max-height: none; min-height: 0; flex-direction: column; flex-wrap: nowrap; align-items: stretch; overflow: auto; padding: 10px 5px; border-right: 1px solid var(--line); border-bottom: 0; }
+    body:not(.tmMode) #brand { flex: 0 0 auto; justify-content: center; flex-wrap: wrap; padding: 0 0 8px; }
+    body:not(.tmMode) .brandName, body:not(.tmMode) .navLabel { display: none !important; }
+    body:not(.tmMode) #newReq { flex: 0 0 38px; width: 38px; height: 38px; margin: 0 0 8px; padding: 0; overflow: hidden; font-size: 0; }
+    body:not(.tmMode) #newReq::before { content: "+"; font-size: 19px; }
+    body:not(.tmMode) #treeToggle { display: inline-flex; }
+    body:not(.tmMode) #treeClose { display: inline-flex; }
+    body:not(.tmMode) .navItem { flex: 0 0 38px; width: 38px; justify-content: center; padding: 6px 3px; white-space: nowrap; }
+    body:not(.tmMode) #railSpace { display: block; }
+    body:not(.tmMode) #side { display: none; position: fixed; left: 48px; top: 0; bottom: 24px; z-index: 600; flex: 0 0 min(300px, calc(100vw - 60px)); width: min(300px, calc(100vw - 60px)); max-height: none; border-right: 1px solid var(--line); border-bottom: 0; box-shadow: 12px 0 32px rgba(28,31,51,.18); }
+    body:not(.tmMode).tree-open #side { display: flex; }
+    body:not(.tmMode) #treeClose { display: inline-flex; }
+    body:not(.tmMode) #treeResize { display: none; }
+    body:not(.tmMode) #main { flex: 1 1 auto; width: auto; min-width: 0; min-height: 0; }
+    body:not(.tmMode) #content { flex-direction: column; min-width: 0; }
+    body:not(.tmMode) #topbar { flex-wrap: nowrap; min-height: 50px; max-height: none; gap: 6px; padding: 6px 8px; overflow-x: auto; }
+    body:not(.tmMode) #topbar .grow { flex: 0 0 0; min-width: 0; }
+    body:not(.tmMode) #crumb { max-width: 100px; }
+    body:not(.tmMode) #envSel { flex: 0 1 130px; min-width: 90px; }
+    body:not(.tmMode) #topbar .btn { padding: 5px 8px; min-height: 32px; }
+    body:not(.tmMode) #work { padding: 8px; }
+  }
+  @media (max-width: 760px) and (max-height: 540px) {
+    body:not(.tmMode) #rail { max-height: none; }
+    body:not(.tmMode) #topbar { min-height: 44px; padding-top: 3px; padding-bottom: 3px; }
+    body:not(.tmMode) .requestWorkspace { flex: 1 1 auto; height: 100%; min-height: 0; grid-template-rows: minmax(120px, 1fr) 10px minmax(140px, 1fr); overflow: hidden; }
+  }
+  @media (min-width: 761px) and (max-width: 1120px) {
+    #topbar { flex-wrap: nowrap; gap: 6px; padding-left: 10px; padding-right: 10px; }
+    #topbar .grow { flex: 1 1 0; min-width: 6px; }
+    #crumb { max-width: 170px; }
+    #envSel { flex: 0 1 150px; min-width: 100px; }
+    #topbar .btn { padding: 5px 9px; }
+  }
 </style>
 </head>
 <body>
 <div id="app">
   <nav id="rail">
-    <div id="brand"><div class="logo">R</div><div><b>Relay</b><small>API Workbench</small></div></div>
-    <button id="newReq">New Request</button>
-    <button class="navItem on" data-view="collections">▦ Collections</button>
-    <button class="navItem" data-view="history">⟲ History</button>
-    <button class="navItem" data-view="environments">⛁ Environments</button>
-    <button class="navItem" data-view="presets">☰ Header Presets</button>
-    <button class="navItem" data-view="tests">☑ Test Management</button>
-    <button class="navItem" disabled data-feature="mock-servers">▣ Mock Servers <span class="tag">v2</span></button>
-    <button class="navItem" disabled data-feature="monitor">◉ Monitor <span class="tag">v2</span></button>
+    <div id="brand"><div class="logo" aria-hidden="true">R</div><div class="brandName"><b>Relay</b><small>API Workbench</small></div><button id="railToggle" class="iconBtn" aria-label="Collapse navigation" aria-expanded="true" title="Collapse navigation">‹</button></div>
+    <button id="newReq" aria-label="New request" title="New request">New Request</button>
+    <button class="navItem on" data-view="collections" aria-current="page" aria-label="Collections" title="Collections"><span class="navIcon" aria-hidden="true">▦</span><span class="navLabel">Collections</span></button>
+    <button class="navItem" data-view="history" aria-label="History" title="History"><span class="navIcon" aria-hidden="true">⟲</span><span class="navLabel">History</span></button>
+    <button class="navItem" data-view="environments" aria-label="Environments" title="Environments"><span class="navIcon" aria-hidden="true">⛁</span><span class="navLabel">Environments</span></button>
+    <button class="navItem" data-view="presets" aria-label="Header presets" title="Header presets"><span class="navIcon" aria-hidden="true">☰</span><span class="navLabel">Header Presets</span></button>
+    <button class="navItem" data-view="tests" aria-label="Test management" title="Test management"><span class="navIcon" aria-hidden="true">☑</span><span class="navLabel">Test Management</span></button>
     <div id="railSpace"></div>
-    <button class="navItem" data-view="settings">⚙ Settings</button>
+    <button class="navItem" data-view="settings" aria-label="Settings" title="Settings"><span class="navIcon" aria-hidden="true">⚙</span><span class="navLabel">Settings</span></button>
   </nav>
-  <aside id="side">
-    <div id="sideHead"><h2 id="sideTitle">COLLECTIONS</h2><button id="sideAdd" title="add">+</button></div>
+  <aside id="side" aria-label="Workspace navigation">
+    <div id="sideHead"><h2 id="sideTitle">COLLECTIONS</h2><button id="treeClose" class="iconBtn" aria-label="Close navigation tree" title="Close navigation tree">×</button><button id="sideAdd" title="Add item" aria-label="Add item">+</button></div>
+    <div id="collectionSearchWrap" hidden><input id="collectionSearch" type="search" placeholder="Search requests…" aria-label="Search collections, folders and requests"><kbd>Ctrl+Shift+F</kbd><button id="clearCollectionSearch" aria-label="Clear search">×</button></div>
     <div id="sideList"></div>
   </aside>
+  <div id="treeResize" role="separator" tabindex="0" aria-label="Resize navigation tree" aria-orientation="vertical" aria-valuemin="160" aria-valuemax="360" aria-valuenow="220" title="Drag to resize navigation tree"></div>
   <div id="main">
     <div id="topbar">
       <span id="crumb">Workspace</span>
+      <button class="btn" id="treeToggle" aria-controls="side" aria-expanded="false" aria-label="Open navigation tree" title="Open navigation tree">Collections</button>
+      <span id="draftStatus" role="status" aria-live="polite"></span>
+      <button class="btn" id="retrySaveBtn" hidden>Retry save</button>
+      <button class="btn" id="reloadConflictBtn" hidden>Reload saved version</button>
+      <span id="tlsStatus" class="note" hidden>⚠ TLS verification is disabled</span>
+      <button class="btn" id="metaToggle" aria-controls="meta" aria-expanded="false" title="Show request details">Details</button>
       <span class="grow"></span>
-      <select id="envSel"><option value="">No environment</option></select>
+      <select id="envSel" aria-label="Active environment"><option value="">No environment</option></select>
       <button class="btn" id="importBtn">Import</button>
       <button class="btn" id="exportBtn">Export ▾</button>
     </div>
@@ -951,7 +1090,7 @@
   </div>
 </div>
 <div id="modal" class="modal-overlay">
-  <div class="modal-box">
+  <div class="modal-box" role="dialog" aria-modal="true" aria-label="Dialog" aria-describedby="modalMsg">
     <p id="modalTitle" class="modal-title" hidden></p>
     <p id="modalMsg" class="modal-msg" hidden></p>
     <input id="modalInput" type="text" hidden>
@@ -964,8 +1103,8 @@
   </div>
 </div>
 <div id="ctxMenu"></div>
-<div id="statusbar"><span><span class="dot"></span>AGENT ONLINE</span><span>relay 0.2.0</span><span id="dbinfo">sqlite</span></div>
-<div id="toast"></div>
+<div id="statusbar"><span>Local workspace</span><span>Relay</span><span id="dbinfo">Storage mode pending</span><button id="workspaceRefresh" type="button" hidden>Refresh files</button><span id="workspaceRefreshStatus" role="status" aria-live="polite" hidden></span></div>
+<div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 <input type="file" id="importFile" accept=".json" hidden>
 
 <script>
@@ -1015,14 +1154,21 @@ const ctxMenu = {
 
 /* ---------- modal dialogs ---------- */
 const modal = {
-  _res: null, _mode: 'confirm', _multiline: false,
+  _res: null, _mode: 'confirm', _multiline: false, _formSubmit: null,
   init() {
     $('modalCancel').onclick = () => this._done(null);
     $('modalOk').onclick = () => this._submit();
     $('modal').addEventListener('click', e => { if (e.target === $('modal')) this._done(null); });
     document.addEventListener('keydown', e => {
       if (!$('modal').classList.contains('open')) return;
-      if (e.key === 'Escape') { e.preventDefault(); this._done(null); }
+      if (e.key === 'Escape') { e.preventDefault(); this._done(null); return; }
+      if (e.key === 'Tab') {
+        const nodes = [...$('modal').querySelectorAll('button:not([disabled]),input:not([hidden]),textarea:not([hidden]),select:not([hidden]),[tabindex]:not([tabindex="-1"])')].filter(el => el.getClientRects().length);
+        if (!nodes.length) return;
+        const first = nodes[0], last = nodes[nodes.length - 1];
+        if (e.shiftKey && (document.activeElement === first || ! $('modal').contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && (document.activeElement === last || ! $('modal').contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+      }
     });
     $('modalInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); this._submit(); } });
     $('modalInputArea').addEventListener('keydown', e => {
@@ -1032,35 +1178,63 @@ const modal = {
       }
     });
   },
-  _done(val) { $('modal').classList.remove('open'); if (this._res) { this._res(val); this._res = null; } },
+  _done(val) {
+    $('modal').classList.remove('open');
+    if (this._res) { this._res(val); this._res = null; }
+    const focus = this._returnFocus; this._returnFocus = null;
+    if (focus?.isConnected) requestAnimationFrame(() => focus.focus());
+  },
   _submit() {
     if (this._mode === 'prompt') {
       const src = this._multiline ? $('modalInputArea') : $('modalInput');
       const v = src.value.trim(); this._done(v || null);
     } else if (this._mode === 'pick') {
       const s = $('modalChoices').querySelector('.modal-choice.on'); this._done(s ? s.dataset.value : null);
+    } else if (this._mode === 'form') {
+      const value = this._formSubmit ? this._formSubmit() : null;
+      if (value === false) return;
+      this._done(value); this._formSubmit = null;
     } else {
       this._done(true);
     }
   },
   _base() {
+    if (!$('modal').classList.contains('open')) this._returnFocus = document.activeElement;
     $('modalTitle').hidden = true; $('modalMsg').hidden = true;
     $('modalInput').hidden = true; $('modalInput').value = '';
     $('modalInputArea').hidden = true; $('modalInputArea').value = '';
     this._multiline = false;
     $('modalChoices').hidden = true; $('modalChoices').innerHTML = '';
+    $('modalCancel').textContent = 'Cancel';
     $('modal').classList.add('open');
+    requestAnimationFrame(() => {
+      const preferred = !$('modalInput').hidden ? $('modalInput') : !$('modalInputArea').hidden ? $('modalInputArea') : $('modalOk');
+      preferred.focus();
+    });
   },
-  confirm(msg, { danger = false, ok = 'Confirm' } = {}) {
+  confirm(msg, { danger = false, ok = 'Confirm', cancel = 'Cancel' } = {}) {
     return new Promise(res => {
       this._res = res; this._mode = 'confirm'; this._base();
+      $('modal').querySelector('.modal-box').setAttribute('aria-label', 'Confirm action');
       $('modalMsg').textContent = msg; $('modalMsg').hidden = false;
+      $('modalCancel').textContent = cancel;
       const btn = $('modalOk'); btn.textContent = ok; btn.className = 'btn ' + (danger ? 'danger' : 'dark');
+    });
+  },
+  form(title, { content, submit = () => true, ok = 'Continue' } = {}) {
+    return new Promise(res => {
+      this._res = res; this._mode = 'form'; this._base(); this._formSubmit = submit;
+      $('modal').querySelector('.modal-box').setAttribute('aria-label', title);
+      $('modalTitle').textContent = title; $('modalTitle').hidden = false;
+      $('modalChoices').hidden = false; if (content) $('modalChoices').append(content);
+      $('modalOk').textContent = ok; $('modalOk').className = 'btn dark';
+      requestAnimationFrame(() => $('modalChoices').querySelector('select,input,textarea,button')?.focus());
     });
   },
   prompt(label, { placeholder = '', value = '', ok = 'OK', multiline = false } = {}) {
     return new Promise(res => {
       this._res = res; this._mode = 'prompt'; this._base();
+      $('modal').querySelector('.modal-box').setAttribute('aria-label', label);
       $('modalTitle').textContent = label; $('modalTitle').hidden = false;
       this._multiline = multiline;
       const inp = multiline ? $('modalInputArea') : $('modalInput');
@@ -1072,6 +1246,7 @@ const modal = {
   pick(title, options) {
     return new Promise(res => {
       this._res = res; this._mode = 'pick'; this._base();
+      $('modal').querySelector('.modal-box').setAttribute('aria-label', title);
       $('modalTitle').textContent = title; $('modalTitle').hidden = false;
       const wrap = $('modalChoices'); wrap.hidden = false;
       options.forEach((opt, i) => {
@@ -1082,6 +1257,7 @@ const modal = {
         }, opt.label, ...(opt.hint ? [h('span', { class: 'modal-hint' }, opt.hint)] : []));
         wrap.append(btn);
       });
+      requestAnimationFrame(() => wrap.querySelector('.modal-choice.on')?.focus());
       $('modalOk').textContent = 'Select'; $('modalOk').className = 'btn dark';
     });
   },
@@ -1090,27 +1266,172 @@ const modal = {
 const S = {
   view: 'collections', state: { collections: [], environments: [], presets: [] },
   openCols: new Set(), reqId: null, req: null, tab: 'headers',
-  tmCollapsedFolders: new Set(),
+  tmCollapsedFolders: new Set(), closedFolders: new Set(), runJobGeneration:0,
   last: null, run: null, presetId: null, envName: localStorage.envName || '',
-  history: [], reqDirty: false, respPretty: true, respWrap: true, respFormat: null,
+  history: [], reqDirty: false, reqRevision: 0, saving: false, sending: false, sendPhase: '', sendingKey: '', saveConflict: false,
+  lastByRequest: new Map(), statsRequestId: null, respPretty: true, respWrap: true, respFormat: null, respSearch: '', respMatchIndex: 0,
+  openRequestSeq: 0, sendFailures: new Map(), lastSuccessAt: new Map(),
+  requestTabOrder: [], requestTabCache: new Map(), activeRequestTabKey: '', collectionSearch: '', lastCurlDraft:'',
+  draftWriterId: crypto.randomUUID(), draftRevisionByRequest: new Map(), draftEditByRequest: new Map(),
+  draftPendingByRequest: new Map(), draftPersistChains: new Map(), draftSavedEditByRequest: new Map(), draftErrors: new Map(), draftTimers: new Map(),
+  workspaceRefreshGeneration: null, workspaceRefreshPolling: false, workspaceRefreshManual: false,
+  treeVisibleCountByCollection: new Map(),
   mode: localStorage.uiMode || 'full',
   responsePaneRatio: Math.min(.78, Math.max(.28, Number(localStorage.responsePaneRatio) || .56)),
   responseMaximized: false,
+  railCollapsed: localStorage.navCollapsed !== 'false',
+  treeWidth: Math.min(360, Math.max(160, Number(localStorage.treeWidth) || 220)),
 };
+function responseKey(requestId, envName) { return `${requestId}::${envName || ''}`; }
+function storageDescription() {
+  const mode = String(S.state.storageMode || S.state.persistenceMode || '').toLowerCase();
+  return mode.includes('file') || mode.includes('canonical') ? 'Files · local-first (SQLite history/index)' : mode ? `${mode} · local-first` : 'Storage mode unavailable';
+}
+function usesWorkspaceFiles() {
+  const mode = String(S.state.storageMode || S.state.persistenceMode || '').toLowerCase();
+  return mode.includes('file') || mode.includes('canonical');
+}
+function updateStorageLabel() {
+  const el = $('dbinfo'); if (el) el.textContent = storageDescription();
+  const files = usesWorkspaceFiles();
+  $('workspaceRefresh').hidden = !files;
+  $('workspaceRefreshStatus').hidden = !files;
+}
+
+function drainRequestDraftQueue(key) {
+  let active=S.draftPersistChains.get(key);
+  if(active)return active;
+  if(String(S.req?.id)===key&&S.reqDirty){const status=$('draftStatus');if(status)status.textContent='Unsaved changes · saving local recovery copy';}
+  const chain=(async()=>{
+    while(S.draftPendingByRequest.has(key)) {
+      const item=S.draftPendingByRequest.get(key); S.draftPendingByRequest.delete(key);
+      try {
+        const expectedRevision=S.draftRevisionByRequest.get(key)||0;
+        const saved=await api(`/api/requests/${encodeURIComponent(key)}/draft`,{method:'PUT',body:{draft:item.request,baseContentHash:item.request.contentHash||'',writerId:S.draftWriterId,expectedRevision,editRevision:item.editRevision}});
+        S.draftRevisionByRequest.set(key,Math.max(expectedRevision,Number(saved.revision)||0));
+        S.draftSavedEditByRequest.set(key,item.editRevision); S.draftErrors.delete(key);
+        reflectDraftPersistenceStatus(key);
+      } catch(e) {
+        if(e.status===409) {
+          try {
+            const current=await api(`/api/requests/${encodeURIComponent(key)}/draft`);
+            const latest=S.draftPendingByRequest.get(key)||item;
+            const safeRetry=!current.exists || (current.writerId===S.draftWriterId&&latest.editRevision>Number(current.editRevision||0));
+            if(safeRetry) {
+              S.draftRevisionByRequest.set(key,current.exists?Number(current.revision)||0:0);
+              S.draftPendingByRequest.set(key,latest); S.draftErrors.delete(key); continue;
+            }
+          } catch {}
+        }
+        if(!S.draftPendingByRequest.has(key))S.draftPendingByRequest.set(key,item);
+        S.draftErrors.set(key,e.status===409?'A newer recovery copy exists in another window. Reload it before continuing.':'Local recovery copy could not be saved. Keep this window open and retry.');
+        reflectDraftPersistenceStatus(key);
+        break;
+      }
+    }
+    reflectDraftPersistenceStatus(key);
+    return !S.draftErrors.has(key);
+  })().finally(()=>{
+    S.draftPersistChains.delete(key);
+    reflectDraftPersistenceStatus(key);
+    if(S.draftPendingByRequest.has(key)&&!S.draftErrors.has(key))queueMicrotask(()=>drainRequestDraftQueue(key));
+  });
+  S.draftPersistChains.set(key,chain);
+  return chain;
+}
+function reflectDraftPersistenceStatus(key) {
+  if(String(S.req?.id)!==key||!S.reqDirty)return;
+  const status=$('draftStatus'), retry=$('retrySaveBtn');
+  if(!status)return;
+  if(S.saveConflict){status.textContent='Save conflict · your draft is retained';if(retry)retry.textContent='Review overwrite…';return;}
+  if(S.saveFailed){status.textContent='Unsaved changes · save failed';return;}
+  if(S.draftErrors.has(key)){status.textContent='Unsaved changes · local recovery copy unavailable';return;}
+  status.textContent=S.draftPendingByRequest.has(key)||S.draftPersistChains.has(key)?'Unsaved changes · saving local recovery copy':'Unsaved changes · local recovery copy saved';
+}
+function queueRequestDraftPersist(request = S.req, force = false) {
+  if (!request?.id || (!force&&!S.reqDirty)) return Promise.resolve(false);
+  const key=String(request.id), editRevision=(S.draftEditByRequest.get(key)||0)+1;
+  S.draftEditByRequest.set(key,editRevision);
+  S.draftPendingByRequest.set(key,{request:structuredClone(request),editRevision});
+  return drainRequestDraftQueue(key);
+}
+function scheduleRequestDraftPersist(request=S.req) {
+  if(!request?.id)return;
+  const key=String(request.id), old=S.draftTimers.get(key);
+  if(old)clearTimeout(old);
+  S.draftTimers.set(key,setTimeout(()=>{S.draftTimers.delete(key);queueRequestDraftPersist(request,true);},250));
+  if(String(S.req?.id)===key){const status=$('draftStatus');if(status&&S.reqDirty)status.textContent='Unsaved changes · saving local recovery copy';}
+}
+async function flushRequestDraft(requestId, latestRequest=null) {
+  const key=String(requestId);
+  const timer=S.draftTimers.get(key); if(timer){clearTimeout(timer);S.draftTimers.delete(key);}
+  if(latestRequest) await queueRequestDraftPersist(latestRequest,true);
+  while(S.draftPersistChains.has(key)) await S.draftPersistChains.get(key);
+  return !S.draftErrors.has(key) && S.draftSavedEditByRequest.get(key) >= S.draftEditByRequest.get(key);
+}
+async function clearRequestDraft(requestId) {
+  const key=String(requestId);
+  const timer=S.draftTimers.get(key); if(timer){clearTimeout(timer);S.draftTimers.delete(key);}
+  while(S.draftPersistChains.has(key)) await S.draftPersistChains.get(key);
+  const revision=S.draftRevisionByRequest.get(key);
+  if(!revision)return true;
+  const requestRevisionAtDelete=S.req?.id&&String(S.req.id)===key?S.reqRevision:null;
+  try {
+    await api(`/api/requests/${encodeURIComponent(key)}/draft`,{method:'DELETE',body:{revision}});
+    if(S.req?.id&&String(S.req.id)===key&&S.reqDirty&&S.reqRevision!==requestRevisionAtDelete){const pendingTimer=S.draftTimers.get(key);if(pendingTimer)clearTimeout(pendingTimer);S.draftTimers.delete(key);S.draftRevisionByRequest.set(key,0);S.draftSavedEditByRequest.delete(key);S.draftErrors.delete(key);queueRequestDraftPersist(S.req,true);return true;}
+    S.draftRevisionByRequest.delete(key); S.draftEditByRequest.delete(key); S.draftSavedEditByRequest.delete(key); S.draftErrors.delete(key);
+    if(S.req?.id&&String(S.req.id)===key&&S.reqDirty)queueRequestDraftPersist(S.req,true);
+    return true;
+  } catch(e) {
+    S.draftErrors.set(key,e.status===409?'A newer recovery copy exists; it was kept.':'Saved request, but recovery-copy cleanup failed.');
+    return false;
+  }
+}
+function persistDirtyDraftsOnPageHide() {
+  const requests=new Map();
+  if(S.reqDirty&&S.req)requests.set(String(S.req.id),S.req);
+  for(const tab of S.requestTabCache.values())if(tab.dirty&&tab.request)requests.set(String(tab.id),tab.request);
+  for(const [key,request] of requests) {
+    const editRevision=(S.draftEditByRequest.get(key)||0)+1; S.draftEditByRequest.set(key,editRevision);
+    const body={draft:request,baseContentHash:request.contentHash||'',writerId:S.draftWriterId,expectedRevision:S.draftRevisionByRequest.get(key)||0,editRevision};
+    try { navigator.sendBeacon(`/api/requests/${encodeURIComponent(key)}/draft`,new Blob([JSON.stringify(body)],{type:'application/json'})); } catch {}
+  }
+}
+window.addEventListener('pagehide',persistDirtyDraftsOnPageHide);
 
 function setReqDirty(v) {
+  if (v) S.reqRevision++;
   S.reqDirty = !!v;
+  if(v&&S.req)scheduleRequestDraftPersist();
   const b = $('saveReqBtn');
-  if (!b) return;
-  b.textContent = S.reqDirty ? 'Save *' : 'Save';
-  b.classList.toggle('dark', S.reqDirty);
+  if (b) {
+    b.textContent = S.reqDirty ? 'Save *' : 'Save';
+    b.classList.toggle('dark', S.reqDirty);
+  }
+  const status = $('draftStatus'), retry = $('retrySaveBtn');
+  if (status) status.textContent = S.reqDirty ? (S.saveFailed ? 'Unsaved changes · save failed' : 'Unsaved changes') : '';
+  if (retry) retry.hidden = !S.saveFailed || !S.reqDirty;
+  if (S.saveConflict && S.reqDirty) { status.textContent = 'Save conflict · your draft is retained'; retry.textContent = 'Review overwrite…'; }
+  $('reloadConflictBtn').hidden = !S.saveConflict || !S.reqDirty;
+  const tab = S.requestTabCache.get(S.activeRequestTabKey);
+  if (tab) { tab.request = S.req; tab.dirty = S.reqDirty; tab.saveFailed = S.saveFailed; tab.saveConflict = S.saveConflict; tab.editorTab = S.tab; }
+  const activeTab = $('work')?.querySelector('.requestTab[aria-selected="true"]');
+  if (activeTab) { activeTab.querySelector('.tabDirty')?.remove(); if (S.reqDirty) activeTab.insertBefore(h('span', { class: 'tabDirty', 'aria-label': 'Unsaved changes' }, '•'), activeTab.querySelector('.requestTabClose')); }
+}
+function refreshDraftStatus() {
+  const status = $('draftStatus'), retry = $('retrySaveBtn'), b = $('saveReqBtn');
+  if (status) status.textContent = S.reqDirty ? (S.saveFailed ? 'Unsaved changes · save failed' : 'Unsaved changes') : '';
+  if (retry) retry.hidden = !S.saveFailed || !S.reqDirty;
+  if (S.saveConflict && S.reqDirty) { status.textContent = 'Save conflict · your draft is retained'; retry.textContent = 'Review overwrite…'; }
+  $('reloadConflictBtn').hidden = !S.saveConflict || !S.reqDirty;
+  if (b) { b.textContent = S.reqDirty ? 'Save *' : 'Save'; b.classList.toggle('dark', S.reqDirty); }
+  if(S.req?.id)reflectDraftPersistenceStatus(String(S.req.id));
 }
 
 function setUIMode(mode) {
   S.mode = mode;
   localStorage.uiMode = mode;
   document.body.classList.toggle('mode-basic', mode === 'basic');
-  render();
 }
 
 function applyUIMode() {
@@ -1126,7 +1447,13 @@ async function api(url, opts = {}) {
   const r = await fetch(url, opts);
   const ct = r.headers.get('Content-Type') || '';
   const data = ct.includes('json') ? await r.json() : await r.text();
-  if (!r.ok) throw new Error((data && data.error) || r.statusText);
+  if (!r.ok) {
+    const error = new Error((data && data.error) || r.statusText);
+    error.status = r.status;
+    error.data = data;
+    error.sourceId = data && data.sourceId;
+    throw error;
+  }
   return data;
 }
 async function apiBlob(url, opts = {}) {
@@ -1147,6 +1474,8 @@ function saveBlob(blob, name) {
   a.click(); URL.revokeObjectURL(a.href);
 }
 let toastTimer;
+let responseSearchTimer = null;
+let responseDisplayCache = { response:null, pretty:null, format:null, value:null };
 function toast(msg, err) {
   const t = $('toast');
   t.textContent = msg; t.className = err ? 'err' : ''; t.style.display = 'block';
@@ -1156,7 +1485,178 @@ function toast(msg, err) {
 
 async function refresh() {
   S.state = await api('/api/state');
-  renderEnvSel(); renderSide();
+  if (Number.isSafeInteger(S.state.workspaceGeneration)) S.workspaceRefreshGeneration = S.state.workspaceGeneration;
+  updateStorageLabel(); renderEnvSel(); renderSide();
+  if (!S.req && S.view === 'collections') renderEmptyWorkspace();
+}
+async function reconcileOpenRequestAfterFileRefresh() {
+  if (!S.req?.id || !usesWorkspaceFiles()) return;
+  const id = S.req.id;
+  const revision = S.reqRevision;
+  try {
+    const latest = await api(`/api/requests/${id}`);
+    if (S.req?.id !== id || latest.contentHash === S.req.contentHash) return;
+    if (S.reqDirty) {
+      S.saveConflict = true;
+      refreshDraftStatus();
+      toast('Open request changed on disk. Review your draft before saving.', true);
+      return;
+    }
+    if (S.reqRevision !== revision) return;
+    S.req = latest;
+    S.saveConflict = false;
+    setReqDirty(false);
+    renderRequest();
+    toast('Open request updated from files');
+  } catch (e) {
+    if (S.req?.id === id && (e.status === 404 || e.status === 409)) {
+      toast('Open request changed or was removed on disk. Refresh files before saving.', true);
+    }
+  }
+}
+function showWorkspaceRefreshStatus(status) {
+  const label = $('workspaceRefreshStatus');
+  const scanning = !!status.scanning || S.workspaceRefreshManual;
+  const error = !!status.error;
+  const checkedAt = status.lastScan ? new Date(status.lastScan) : null;
+  label.classList.toggle('error', error);
+  label.textContent = error ? 'File scan failed · showing last checked files' : scanning ? 'Checking files…' : checkedAt ? `Checked ${checkedAt.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}` : 'Waiting for file scan';
+  label.title = error ? status.error : checkedAt ? `Last checked ${checkedAt.toLocaleString()}` : '';
+  $('workspaceRefresh').disabled = S.workspaceRefreshManual;
+}
+let workspaceRefreshTimer;
+async function pollWorkspaceRefreshStatus() {
+  if (!usesWorkspaceFiles()) return;
+  if (S.workspaceRefreshPolling) return;
+  if (document.hidden) {
+    clearTimeout(workspaceRefreshTimer);
+    workspaceRefreshTimer = setTimeout(pollWorkspaceRefreshStatus, 60000);
+    return;
+  }
+  S.workspaceRefreshPolling = true;
+  let delay = 30000;
+  try {
+    const status = await api('/api/workspace/refresh-status');
+    showWorkspaceRefreshStatus(status);
+    delay = status.scanning ? 1000 : 30000;
+    if (S.workspaceRefreshGeneration === null) S.workspaceRefreshGeneration = status.generation;
+    else if (status.generation !== S.workspaceRefreshGeneration) {
+      await refresh();
+      await reconcileOpenRequestAfterFileRefresh();
+    }
+  } catch (_) {
+    showWorkspaceRefreshStatus({ error:'File refresh status is unavailable.' });
+  } finally {
+    S.workspaceRefreshPolling = false;
+    clearTimeout(workspaceRefreshTimer);
+    workspaceRefreshTimer = setTimeout(pollWorkspaceRefreshStatus, delay);
+  }
+}
+async function refreshWorkspaceFiles() {
+  if (S.workspaceRefreshManual) return;
+  S.workspaceRefreshManual = true;
+  showWorkspaceRefreshStatus({ scanning:true });
+  try {
+    const status = await api('/api/workspace/refresh', { method:'POST' });
+    await refresh();
+    await reconcileOpenRequestAfterFileRefresh();
+    S.workspaceRefreshManual = false;
+    showWorkspaceRefreshStatus(status);
+  } catch (_) {
+    showWorkspaceRefreshStatus({ error:'Workspace scan failed. Current files could not be verified.' });
+    toast('File refresh failed. The last checked workspace is still shown.', true);
+  } finally {
+    S.workspaceRefreshManual = false;
+    $('workspaceRefresh').disabled = false;
+    clearTimeout(workspaceRefreshTimer);
+    workspaceRefreshTimer = setTimeout(pollWorkspaceRefreshStatus, 1000);
+  }
+}
+$('workspaceRefresh').onclick = refreshWorkspaceFiles;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !usesWorkspaceFiles()) return;
+  clearTimeout(workspaceRefreshTimer);
+  pollWorkspaceRefreshStatus();
+});
+function renderEmptyWorkspace() {
+  const work = $('work'); work.innerHTML = '';
+  const canCreateCollection = !String(S.state.storageMode || '').toLowerCase().includes('file');
+  const hasTarget = (S.state.collections || []).length > 0;
+  work.append(h('section', { class:'startPanel', 'aria-labelledby':'startTitle' },
+    h('h1', { id:'startTitle' }, 'Start with a request'),
+    h('p', {}, hasTarget ? 'Paste a URL or curl command, import a collection, or open a ready-to-edit sample.' : canCreateCollection ? 'Paste a URL or curl command, import a collection, or open a ready-to-edit sample.' : 'Import a Postman or OpenAPI collection to start. Then Relay can add requests to it.'),
+    h('div', { class:'startActions' },
+      hasTarget || canCreateCollection ? h('button', { class:'btn dark', onclick:createRequestFromURL }, 'Paste URL') : null,
+      hasTarget || canCreateCollection ? h('button', { class:'btn', onclick:pasteCurlRequest }, 'Paste curl') : null,
+      h('button', { class:'btn', onclick:()=>$('importBtn').click() }, 'Import collection'),
+      hasTarget || canCreateCollection ? h('button', { class:'btn', onclick:createSampleRequest }, 'Try sample request') : null)));
+}
+async function ensureRequestCollection() {
+  const current = S.reqId && findReqMeta(S.reqId);
+  if (current) return current.col;
+  if (S.state.collections?.length) return S.state.collections[0];
+  const created = await createCollectionRecord('My Collection');
+  await refresh();
+  return S.state.collections.find(c => String(c.id) === String(created.id)) || S.state.collections[0];
+}
+function workspaceRevisionHash() {
+  return (S.state?.collections || []).find(c => c.workspaceHash)?.workspaceHash || S.state?.workspaceHash || '';
+}
+async function createCollectionRecord(name) {
+  const body = { name, headers:{}, vars:{} };
+  if (String(S.state?.storageMode || '').toLowerCase().includes('file')) {
+    const workspaceHash = workspaceRevisionHash();
+    if (!workspaceHash) throw new Error('The workspace revision is unavailable, so a collection cannot be created safely yet. Reload a workspace containing a collection, or use SQLite mode.');
+    body.workspaceHash = workspaceHash;
+  }
+  return api('/api/collections', { method:'POST', body });
+}
+async function createRequestFromURL() {
+  const url = await modal.prompt('Paste request URL', { placeholder:'https://api.example.test/v1/items' });
+  if (!url) return;
+  try {
+    const col = await ensureRequestCollection();
+    const entries = queryEntriesFromURL(url);
+    let name = 'New request'; try { const parsed = new URL(url); name = parsed.pathname.split('/').filter(Boolean).at(-1) || parsed.hostname; } catch { /* Variables or relative URLs remain editable. */ }
+    const created = await api('/api/requests', { method:'POST', body:{ collectionId:col.id, spec:{ name, method:'GET', url, query:queryMap(entries), queryEntries:entries } } });
+    S.openCols.add(col.id); await refresh(); S.view='collections'; await openRequest(created.id); $('url')?.focus();
+  } catch (e) { toast(e.message, true); }
+}
+async function pasteCurlRequest() {
+  const curl = await modal.prompt('Paste curl command', { placeholder:'curl --request GET https://api.example.test/path', value:S.lastCurlDraft, multiline:true, ok:'Create request' });
+  if (!curl) return;
+  await importCurlText(curl);
+}
+async function importCurlText(curl) {
+  const original=String(curl||''); S.lastCurlDraft=original;
+  for(let attempt=0;attempt<2;attempt++) {
+    try {
+      if(attempt>0) await refresh();
+      const col=await ensureRequestCollection();
+      const body={collectionId:col.id,curl:original.trim()};
+      if(String(S.state?.storageMode||'').toLowerCase().includes('file')) {
+        const workspaceHash=workspaceRevisionHash();
+        if(!workspaceHash) throw new Error('The workspace revision is unavailable. Your curl command is retained; reload the workspace and retry.');
+        body.workspaceHash=workspaceHash;
+      }
+      const created=await api('/api/import/curl',{method:'POST',body});
+      S.lastCurlDraft=''; S.openCols.add(created.collectionId||col.id); await refresh(); S.view='collections'; await openRequest(created.id);
+      if(attempt>0) toast('Workspace reloaded and curl import retried successfully.');
+      return true;
+    } catch(e) {
+      if(e.status===409 && attempt===0) continue;
+      toast(e.status===409?'Workspace changed again. Your curl command is retained; reload and retry when ready.':e.message,true);
+      return false;
+    }
+  }
+}
+async function createSampleRequest() {
+  try {
+    const col = await ensureRequestCollection();
+    const created = await api('/api/requests', { method:'POST', body:{ collectionId:col.id, spec:{ name:'Sample · Echo API', method:'GET', url:'https://postman-echo.com/get?source=relay-demo', query:{ source:'relay-demo' }, queryEntries:[{ key:'source', value:'relay-demo' }] } } });
+    S.openCols.add(col.id); await refresh(); S.view='collections'; await openRequest(created.id);
+    toast('Sample ready. Press Send when you want to run it.');
+  } catch (e) { toast(e.message, true); }
 }
 function findReqMeta(id) {
   for (const c of S.state.collections)
@@ -1301,31 +1801,92 @@ async function moveRequestTo(reqId, collectionId, folderId = null) {
 }
 
 /* ---------- nav + side panel ---------- */
+function treeDisclosureKey(e, expanded, toggle) {
+  if (e.target !== e.currentTarget && e.target.closest('button')) return;
+  if ((e.key === 'F10' && e.shiftKey) || e.key === 'ContextMenu') {
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    e.currentTarget.dispatchEvent(new MouseEvent('contextmenu', { bubbles:true, cancelable:true, clientX:rect.left, clientY:rect.bottom }));
+    return;
+  }
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+  else if (e.key === 'ArrowRight' && !expanded) { e.preventDefault(); toggle(); }
+  else if (e.key === 'ArrowLeft' && expanded) { e.preventDefault(); toggle(); }
+}
+function arrowTabKey(e, current, options, onSelect, group) {
+  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+  e.preventDefault();
+  const delta = e.key === 'ArrowRight' ? 1 : -1;
+  const next = options[(options.indexOf(current) + delta + options.length) % options.length];
+  onSelect(next);
+  requestAnimationFrame(() => document.querySelector(`[data-tab-group="${group}"][data-tab="${next}"]`)?.focus());
+}
+
 document.querySelectorAll('.navItem[data-view]').forEach(b => b.onclick = async () => {
-  if (S.reqDirty && S.req) await saveRequest();
+  if (S.reqDirty && S.req && !(await saveRequest())) return;
   S.view = b.dataset.view;
-  document.querySelectorAll('.navItem').forEach(x => x.classList.toggle('on', x === b));
+  document.body.classList.remove('meta-open');
+  $('metaToggle').setAttribute('aria-expanded', 'false'); $('metaToggle').textContent = 'Details';
+  document.querySelectorAll('.navItem').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-current', x === b ? 'page' : 'false'); });
   renderSide();
   if (S.view === 'history') renderHistoryView();
   if (S.view === 'environments') renderEnvView();
   if (S.view === 'presets') renderPresetView();
   if (S.view === 'settings') renderSettingsView();
   if (S.view === 'tests') renderTestsView();
-  if (S.view === 'collections' && S.reqId) openRequest(S.reqId);
+  if (S.view === 'collections' && S.reqId) {
+    if (S.req?.id === S.reqId) renderRequest();
+    else await openRequest(S.reqId);
+  }
 });
+$('retrySaveBtn').onclick = async () => {
+  if (S.saveConflict && S.req?.id) {
+    try {
+      const latest = await api('/api/requests/' + S.req.id);
+      const oldURL=S.req.spec?.url||'(URL unavailable)', latestURL=latest.spec?.url||'(URL unavailable)';
+      if(!await modal.confirm(`The saved request changed. Your draft is ${S.req.spec?.method||'GET'} ${oldURL}. The current saved request is ${latest.spec?.method||'GET'} ${latestURL}. If you continue, your draft will overwrite the current saved request.`,{ok:'Overwrite saved request'}))return;
+      if (latest.contentHash) S.req.contentHash = latest.contentHash; S.saveConflict = false;
+    }
+    catch (e) { toast(e.message, true); return; }
+  }
+  await saveRequest(true);
+};
+$('reloadConflictBtn').onclick = async () => {
+  if (!S.req?.id || !S.saveConflict) return;
+  if (!await modal.confirm('Reload the saved version? This replaces your unsaved draft.', { ok: 'Reload saved version' })) return;
+  const id = S.req.id;
+  try { const latest = await api('/api/requests/' + id); if (S.req?.id !== id) return; S.req = latest; S.reqDirty = false; S.saveFailed = false; S.saveConflict = false; await clearRequestDraft(id); setReqDirty(false); $('reloadConflictBtn').hidden = true; $('retrySaveBtn').hidden = true; renderRequest(); refreshDraftStatus(); }
+  catch (e) { toast(e.message, true); }
+};
 
 function renderSide() {
   if (S.view !== 'tests') renderTestsTopbar();
+  $('metaToggle').hidden = !(S.view === 'collections' && !!S.req);
   const list = $('sideList'); list.innerHTML = '';
+  if (S.view === 'collections') { list.setAttribute('role', 'tree'); list.setAttribute('aria-label', 'Collections and requests'); }
+  else { list.removeAttribute('role'); list.removeAttribute('aria-label'); }
   const titles = { collections: 'COLLECTIONS', history: 'HISTORY', environments: 'ENVIRONMENTS', presets: 'HEADER PRESETS', settings: 'SETTINGS', tests: 'TEST MANAGEMENT' };
   $('sideTitle').textContent = titles[S.view];
+  const searchWrap = $('collectionSearchWrap'); searchWrap.hidden = S.view !== 'collections';
+  $('collectionSearch').value = S.collectionSearch;
   $('sideAdd').style.visibility = (S.view === 'history' || S.view === 'settings' || S.view === 'tests') ? 'hidden' : 'visible';
 
   if (S.view === 'collections') {
+    const needle = S.collectionSearch.trim().toLocaleLowerCase();
+    const matches = q => !needle || [q.name, q.method, q.url].some(v => String(v || '').toLocaleLowerCase().includes(needle));
     for (const c of S.state.collections || []) {
-      const open = S.openCols.has(c.id);
-      list.append(h('div', { class: 'colRow',
+      const collectionHit = !needle || c.name.toLocaleLowerCase().includes(needle);
+      const matchingFolderIDs = new Set(collectionHit ? [] : c.folders.filter(f => f.name.toLocaleLowerCase().includes(needle)).map(f => String(f.id)));
+      const visibleRequests = collectionHit ? c.requests : c.requests.filter(q => matches(q) || matchingFolderIDs.has(String(q.folderId)));
+      const requestLimit = S.treeVisibleCountByCollection.get(c.id) || 300;
+      const displayedRequests = visibleRequests.slice(0, requestLimit);
+      const visibleFolderIDs = new Set(visibleRequests.map(q => String(q.folderId)));
+      const visibleFolders = c.folders.filter(f => collectionHit || f.name.toLocaleLowerCase().includes(needle) || visibleFolderIDs.has(String(f.id)));
+      if (needle && !collectionHit && !visibleRequests.length && !visibleFolders.length) continue;
+      const open = S.openCols.has(c.id) || !!needle;
+      list.append(h('div', { class: 'colRow', role: 'treeitem', tabindex: '0', 'data-collection-id': String(c.id), 'aria-level': '1', 'aria-expanded': String(open), 'aria-label': `${c.name}; Shift+F10 for collection actions`, title:'Shift+F10 or right-click for collection actions',
         onclick: () => { open ? S.openCols.delete(c.id) : S.openCols.add(c.id); renderSide(); },
+        onkeydown: e => treeDisclosureKey(e, open, () => { open ? S.openCols.delete(c.id) : S.openCols.add(c.id); renderSide(); requestAnimationFrame(() => document.querySelector(`[data-collection-id="${c.id}"]`)?.focus()); }),
         ondragover: (e) => {
           e.preventDefault();
           e.currentTarget.classList.add('drag-over');
@@ -1347,25 +1908,39 @@ function renderSide() {
         oncontextmenu: (e) => { e.preventDefault(); e.stopPropagation(); showColCtx(e, c); },
       },
 
-        h('span', { class: 'car' }, open ? '▾' : '▸'), '🗀 ', c.name,
-        h('button', { class: 'runBtn', title: 'Run collection', onclick: (e) => { e.stopPropagation(); runCollection(c); } }, '▶'),
-        h('button', { class: 'runBtn', title: 'Collection settings', onclick: (e) => { e.stopPropagation(); renderCollectionSettings(c); } }, '⚙'),
-        h('button', { class: 'runBtn', title: 'Delete collection', onclick: async (e) => {
+        h('span', { class: 'car' }, open ? '▾' : '▸'), h('span', { class:'colLabel' }, '🗀 ', c.name),
+        h('button', { class: 'runBtn', title: 'Run collection', 'aria-label': `Run collection ${c.name}`, onclick: (e) => { e.stopPropagation(); runCollection(c); } }, '▶'),
+        h('button', { class: 'runBtn', title: 'Collection settings', 'aria-label': `Settings for collection ${c.name}`, onclick: (e) => { e.stopPropagation(); renderCollectionSettings(c); } }, '⚙'),
+        h('button', { class: 'runBtn', title: 'Delete collection', 'aria-label': `Delete collection ${c.name}`, onclick: async (e) => {
           e.stopPropagation();
           if (!await modal.confirm(`Delete "${c.name}" and all its requests?`, { danger: true, ok: 'Delete' })) return;
           try {
-            await api('/api/collections/' + c.id, { method: 'DELETE' });
+            await api('/api/collections/' + c.id, { method: 'DELETE', body:{ contentHash:c.contentHash, workspaceHash:c.workspaceHash } });
             if (S.reqId && findReqMeta(S.reqId)?.col.id === c.id) { S.reqId = null; S.req = null; $('work').innerHTML = '<div class="empty">Select a request, or create one.</div>'; $('meta').hidden = true; }
             await refresh();
           } catch (err) { toast(err.message, true); }
         } }, '✕')));
 
       if (!open) continue;
-      const byFolder = (fid) => c.requests.filter(q => String(q.folderId) === String(fid));
-      for (const q of byFolder(null)) list.append(reqRow(q));
-      for (const f of c.folders) {
+      const requestsByFolder = new Map();
+      const fullFolderCounts = new Map();
+      for (const q of visibleRequests) {
+        const key = String(q.folderId || '');
+        fullFolderCounts.set(key, (fullFolderCounts.get(key) || 0) + 1);
+      }
+      for (const q of displayedRequests) {
+        const key = String(q.folderId || '');
+        if (!requestsByFolder.has(key)) requestsByFolder.set(key, []);
+        requestsByFolder.get(key).push(q);
+      }
+      const byFolder = fid => requestsByFolder.get(String(fid || '')) || [];
+      for (const q of byFolder(null)) list.append(reqRow(q, 2));
+      for (const f of visibleFolders) {
+        const folderOpen = needle ? true : !S.closedFolders.has(f.id);
         list.append(h('div', {
-          class: 'folderRow',
+          class: 'folderRow', role: 'treeitem', tabindex: '0', 'data-folder-id': String(f.id), 'aria-level': '2', 'aria-expanded': String(folderOpen), 'aria-label': f.name,
+          onclick: () => { folderOpen ? S.closedFolders.add(f.id) : S.closedFolders.delete(f.id); renderSide(); },
+          onkeydown: e => treeDisclosureKey(e, folderOpen, () => { folderOpen ? S.closedFolders.add(f.id) : S.closedFolders.delete(f.id); renderSide(); requestAnimationFrame(() => document.querySelector(`[data-folder-id="${f.id}"]`)?.focus()); }),
           ondragover: (e) => { e.preventDefault(); e.currentTarget.classList.add('drag-over'); },
           ondragleave: (e) => { e.currentTarget.classList.remove('drag-over'); },
           ondrop: async (e) => {
@@ -1384,20 +1959,35 @@ function renderSide() {
             }
           },
           oncontextmenu: (e) => { e.preventDefault(); e.stopPropagation(); showFolderCtx(e, f, c); }
-        }, '🗀 ', f.name,
+        }, folderOpen ? '▾ 📁 ' : '▸ 📁 ', f.name,
           h('button', { class: 'runBtn', title: 'Folder settings', style: 'margin-left:auto',
             onclick: (e) => { e.stopPropagation(); renderFolderSettings(f, c); } }, '⚙')));
         const folderReqs = byFolder(f.id);
-        if (!folderReqs.length) {
+        if (!folderOpen) continue;
+        if (!folderReqs.length && !fullFolderCounts.get(String(f.id))) {
           list.append(h('div', {
-            class: 'reqRow',
+            class: 'reqRow', role: 'presentation',
             style: 'opacity:.65;font-style:italic',
             oncontextmenu: (e) => { e.preventDefault(); e.stopPropagation(); showFolderCtx(e, f, c); },
           }, h('span', { class: 'nm' }, '(empty folder)')));
         }
-        for (const q of folderReqs) list.append(reqRow(q));
+        for (const q of folderReqs) list.append(reqRow(q, 3));
+      }
+      if (visibleRequests.length > requestLimit) {
+        const remaining = visibleRequests.length - requestLimit;
+        const showMore = () => {
+            S.treeVisibleCountByCollection.set(c.id, requestLimit + 300);
+            renderSide();
+            requestAnimationFrame(() => (list.querySelector(`[data-show-more-collection="${c.id}"]`) ||
+              list.querySelector(`[data-request-id="${visibleRequests[visibleRequests.length - 1].id}"]`))?.focus());
+          };
+        list.append(h('div', { class:'reqRow treeMore', role:'treeitem', tabindex:'0', 'aria-level':'2',
+          'aria-label':`Show more requests in ${c.name}`, 'data-show-more-collection':String(c.id),
+          onclick:showMore, onkeydown:e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showMore(); } },
+        }, `Show ${Math.min(300, remaining)} more of ${remaining} requests`));
       }
     }
+    if (needle && !list.children.length) list.append(h('div', { class: 'histRow', role: 'status' }, 'No matching collections or requests'));
   } else if (S.view === 'history') {
     for (const e of S.history) {
       list.append(h('div', {
@@ -1635,8 +2225,9 @@ function renderJsonNode(parent, val, path, depth, onAdd) {
 // built from the test's last real send (S.lastTestRun / history), letting the
 // user add assertions by clicking values instead of typing jsonpaths by hand.
 function openAssertFromResponse(sample, onAdded) {
+  const returnFocus = document.activeElement;
   const overlay = h('div', { class: 'modal-overlay open' });
-  const box = h('div', { class: 'modal-box', style: 'max-width:640px' });
+  const box = h('div', { class: 'modal-box', role:'dialog', 'aria-modal':'true', 'aria-label':'Assert from response', style: 'max-width:640px' });
   let added = 0;
   const addedLbl = h('span', { style: 'font-size:12px;color:var(--green);font-weight:600' }, '');
   box.append(h('p', { class: 'modal-title' }, 'Assert from response'));
@@ -1648,11 +2239,22 @@ function openAssertFromResponse(sample, onAdded) {
     onAdded(a);
   });
   box.append(tree);
-  box.append(h('div', { class: 'modal-actions', style: 'margin-top:14px' }, addedLbl,
-    h('button', { class: 'btn dark', onclick: () => overlay.remove() }, 'Done')));
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  const done = h('button', { class: 'btn dark', onclick: () => close() }, 'Done');
+  box.append(h('div', { class: 'modal-actions', style: 'margin-top:14px' }, addedLbl, done));
+  const close = () => { overlay.remove(); if (returnFocus?.isConnected) requestAnimationFrame(() => returnFocus.focus()); };
+  overlay.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+    if (e.key === 'Tab') {
+      const nodes = [...box.querySelectorAll('button:not([disabled]),input:not([hidden]),textarea:not([hidden]),select:not([hidden]),[tabindex]:not([tabindex="-1"])')].filter(el => el.getClientRects().length);
+      const first = nodes[0], last = nodes[nodes.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !box.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !box.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+    }
+  });
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
   overlay.append(box);
   document.body.append(overlay);
+  requestAnimationFrame(() => done.focus());
 }
 
 async function createManagedTest(folderId = null) {
@@ -2046,6 +2648,8 @@ function renderTestsTopbar(test) {
   top.querySelectorAll('.tmTopBtn').forEach(n => n.remove());
   const imp = $('importBtn'), exp = $('exportBtn'), env = $('envSel');
   if (S.view !== 'tests') {
+    $('treeToggle').textContent = 'Collections';
+    $('treeToggle').setAttribute('aria-label', 'Open navigation tree');
     if (imp) imp.hidden = false;
     if (exp) exp.hidden = false;
     if (env) env.hidden = false;
@@ -2054,7 +2658,18 @@ function renderTestsTopbar(test) {
   if (imp) imp.hidden = true;
   if (exp) exp.hidden = true;
   if (env) env.hidden = false;
+  $('treeToggle').textContent = 'Suite';
+  $('treeToggle').setAttribute('aria-label', 'Open test suite tree');
   top.append(
+    h('button', { class: 'btn sm tmTopBtn tmCreateMenu', 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (e) => {
+      const b = e.currentTarget, r = b.getBoundingClientRect();
+      ctxMenu.show(r.left, r.bottom, [
+        { label: 'New test', action: () => createManagedTest() },
+        { label: 'New folder', action: () => createTestFolder() },
+        { label: 'New test set', action: () => createTestSet() },
+      ]);
+      b.setAttribute('aria-expanded', 'true'); setTimeout(() => b.setAttribute('aria-expanded', 'false'), 0);
+    } }, 'Create ▾'),
     h('button', { class: 'btn sm tmTopBtn', onclick: () => createManagedTest() }, '+ New test'),
     h('button', { class: 'btn sm tmTopBtn', disabled: test ? undefined : 'true', onclick: () => test && duplicateManagedTest(test) }, 'Duplicate'),
     h('button', { class: 'btn dark sm tmTopBtn', id: 'runBtn', disabled: test ? undefined : 'true', onclick: () => test && runManagedScope() }, 'Run'));
@@ -2115,7 +2730,7 @@ function renderTestsSide(list) {
     h('button', { class: 'btn dark', onclick: () => createManagedTest() }, '+ New test'),
     h('button', { class: 'btn', onclick: () => createTestFolder() }, '+ Folder'),
     h('button', { class: 'btn', onclick: () => createTestSet() }, '+ Set')));
-  list.append(h('div', { style: 'padding:0 8px 8px' },
+  list.append(h('div', { class: 'tmSuiteSearch', style: 'padding:0 8px 8px' },
     h('input', { type: 'text', placeholder: 'Search tests, endpoints, Xray…', style: 'width:100%', value: S.testSearch || '',
       oninput: (e) => { S.testSearch = e.target.value; renderSide(); } })));
   const chipDefs = [['failed', 'Failed'], ['noxray', 'No Xray link'], ['hasassert', 'Has assertions'], ['disabled', 'Disabled']];
@@ -2176,6 +2791,8 @@ function toggleTestFolder(f) {
 function testFolderRow(f, count, open = true) {
   return h('div', {
     class: 'tmFolderRow' + (open ? '' : ' closed'),
+    role: 'treeitem', tabindex: '0', 'aria-expanded': String(open), 'aria-label': `${f.name || 'Unfiled tests'}, ${count} tests, ${open ? 'expanded' : 'collapsed'}`,
+    onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleTestFolder(f); } },
     onclick: (e) => { e.preventDefault(); toggleTestFolder(f); },
     oncontextmenu: (e) => { e.preventDefault(); e.stopPropagation(); showTestFolderCtx(e, f); },
     ondragover: (e) => { if (e.dataTransfer?.types.includes('text/test-id')) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); } },
@@ -2193,8 +2810,10 @@ function testSideRow(t) {
   const passed = testPassed(t);
   return h('div', {
     class: 'tmTestTreeRow' + (String(t.id) === String(S.testId) ? ' on' : ''),
+    role: 'treeitem', tabindex: '0', 'aria-selected': String(String(t.id) === String(S.testId)), 'aria-label': `Test ${t.name}${t.xrayKey ? ', linked to ' + t.xrayKey : ', no Xray link'}`,
     draggable: 'true',
     onclick: () => openTest(t.id),
+    onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTest(t.id); } },
     ondragstart: (e) => { e.currentTarget.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/test-id', String(t.id)); },
     ondragend: (e) => { e.currentTarget.classList.remove('dragging'); document.querySelectorAll('.tmFolderRow.drag-over').forEach(el => el.classList.remove('drag-over')); },
     oncontextmenu: (e) => { e.preventDefault(); e.stopPropagation(); showManagedTestCtx(e, t); },
@@ -2349,11 +2968,16 @@ function renderTestEditor(sourceTest) {
 }
 function renderHandoffTestEditor(test, meta, save) {
   const work = $('work'); work.innerHTML = '';
+  const latest = lastRunForTest(test.id);
+  work.append(h('div', { class: 'tmRequestSummary', role: 'status' },
+    h('span', { class: 'method m-' + (meta?.meta?.method || '') }, meta?.meta?.method || 'REQUEST'),
+    h('span', { class: 'tmUrl' }, meta?.meta?.url || 'No linked request'),
+    h('span', { class: 'tmBadge' }, latest ? `Last run ${latest.status}` : 'Not run')));
+  work.append(renderAssertionPanel(test, save));
   work.append(renderIdentityPanel(test, meta, save));
   work.append(renderRequestOverridePanel(test, save));
-  work.append(renderAssertionPanel(test, save));
   work.append(renderTracePanel(test, meta, save));
-  work.append(renderLastRunPanel(test, lastRunForTest(test.id)));
+  work.append(renderLastRunPanel(test, latest));
   renderTestMetaRail(test);
 }
 function renderIdentityPanel(test, meta, save) {
@@ -2447,7 +3071,6 @@ function headerRow(test, req, key, value, save) {
 }
 function renderAssertionPanel(test, save) {
   return h('section', { class: 'tmPanel' },
-    h('div', { class: 'tmSecHd' }, 'Assertions', h('span', { class: 'n' }, String((test.assertions || []).length)), h('span', { class: 'grow' })),
     h('div', { class: 'tmSecBody tmAssertionWrap' }, buildAssertionsEditor({ id: test.id, spec: test }, test, save)),
     h('div', { class: 'tmSecHd' }, 'Script assertion', h('span', { class: 'grow' }), h('span', { class: 'tmBadge' }, 'pm.test')),
     h('div', { class: 'tmSecBody' }, h('textarea', { class: 'scriptEd', placeholder: 'pm.test(\"response is valid\", () => { pm.expect(pm.response.code).to.eql(200); });',
@@ -2683,13 +3306,22 @@ async function runManagedTests(scope) {
     else renderTestsDashboard();
   } catch (e) { toast(e.message, true); }
 }
-function reqRow(q) {
+function reqRow(q, level = 2) {
   return h('div', {
     class: 'reqRow' + (q.id === S.reqId ? ' on' : ''),
+    role: 'treeitem', tabindex: '0', 'data-request-id': String(q.id), 'aria-level': String(level), 'aria-selected': String(q.id === S.reqId), 'aria-label': `${q.method} ${q.name}; Shift+F10 for request actions`, title:'Shift+F10 or right-click for request actions',
     draggable: 'true',
     ondragstart: (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('requestId', q.id); },
     ondragend: () => document.querySelectorAll('.folderRow.drag-over, .colRow.drag-over').forEach(el => el.classList.remove('drag-over')),
-    onclick: () => openRequest(q.id),
+    onclick: () => openRequest(q.id).then(() => { setTreeOpen(false); requestAnimationFrame(() => document.querySelector(`[data-request-id="${q.id}"]`)?.focus()); }),
+    onkeydown: e => {
+      if ((e.key === 'F10' && e.shiftKey) || e.key === 'ContextMenu') {
+        e.preventDefault(); const rect = e.currentTarget.getBoundingClientRect();
+        e.currentTarget.dispatchEvent(new MouseEvent('contextmenu', { bubbles:true, cancelable:true, clientX:rect.left, clientY:rect.bottom }));
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault(); openRequest(q.id).then(() => { setTreeOpen(false); requestAnimationFrame(() => document.querySelector(`[data-request-id="${q.id}"]`)?.focus()); });
+      }
+    },
     oncontextmenu: (e) => { e.preventDefault(); e.stopPropagation(); openRequest(q.id).then(() => showReqCtx(e, q)); },
   },
     h('span', { class: 'method m-' + q.method }, q.method),
@@ -2743,7 +3375,8 @@ function showFolderCtx(e, f, c) {
       const name = await modal.prompt('New folder name', { value: f.name }); if (!name) return;
       try {
         f.name = name;
-        await api('/api/folders/' + f.id, { method: 'PATCH', body: f });
+        const saved = await api('/api/folders/' + f.id, { method: 'PATCH', body: f });
+        if (saved?.contentHash) f.contentHash = saved.contentHash;
         await refresh();
         renderSide();
         toast('Folder renamed');
@@ -2753,7 +3386,7 @@ function showFolderCtx(e, f, c) {
     { icon: '🗑', label: 'Delete folder', danger: true, action: async () => {
       if (!await modal.confirm(`Delete "${f.name}" folder?`, { danger: true, ok: 'Delete' })) return;
       try {
-        await api('/api/folders/' + f.id, { method: 'DELETE' });
+        await api('/api/folders/' + f.id, { method: 'DELETE', body:{ contentHash:f.contentHash } });
         await refresh();
         renderSide();
         toast('Folder deleted');
@@ -2835,6 +3468,8 @@ async function showReqCtx(e, q) {
     '-',
     { icon: '🗑', label: 'Delete', danger: true, action: async () => {
       if (!await modal.confirm(`Delete "${q.name}"?`, { danger: true, ok: 'Delete' })) return;
+      if (S.req?.id === q.id && S.reqDirty && !(await saveRequest())) return;
+      if (S.requestTabOrder.some(k => { const t=S.requestTabCache.get(k); return String(t?.id)===String(q.id) && t.dirty; })) return toast('Save or close every dirty tab for this request before deleting it.', true);
       try {
         await api('/api/requests/' + q.id, { method: 'DELETE' });
         if (S.reqId === q.id) { S.reqId = null; S.req = null; $('work').innerHTML = '<div class="empty">Select a request, or create one.</div>'; $('meta').hidden = true; }
@@ -2848,7 +3483,7 @@ $('sideAdd').onclick = async () => {
   try {
     if (S.view === 'collections') {
       const name = await modal.prompt('New collection name'); if (!name) return;
-      await api('/api/collections', { method: 'POST', body: { name, headers: {}, vars: {} } });
+      await createCollectionRecord(name);
     } else if (S.view === 'environments') {
       const name = await modal.prompt('New environment name'); if (!name) return;
       await api('/api/environments/' + encodeURIComponent(name), { method: 'PUT', body: { vars: {}, secrets: [] } });
@@ -2865,7 +3500,7 @@ $('newReq').onclick = async () => {
     const current = S.reqId && findReqMeta(S.reqId);
     let col = current ? current.col : S.state.collections[0];
     if (!col) {
-      await api('/api/collections', { method: 'POST', body: { name: 'My Collection', headers: {}, vars: {} } });
+      await createCollectionRecord('My Collection');
       await refresh(); col = S.state.collections[0];
     }
     await createRequestInCollection(col.id);
@@ -2879,55 +3514,133 @@ function renderEnvSel() {
   sel.value = S.state.environments.some(e => e.name === S.envName) ? S.envName : '';
 }
 $('envSel').onchange = () => {
-  S.envName = $('envSel').value;
+  const nextEnv = $('envSel').value;
+  if (S.req && S.view === 'collections') { openRequest(S.req.id, nextEnv); return; }
+  S.envName = nextEnv;
   localStorage.envName = S.envName;
-  if (S.req) renderRequest();
+  if (S.req && S.view === 'collections') {
+    S.last = S.lastByRequest.get(responseKey(S.req.id, S.envName)) || null;
+    renderRequest();
+  }
   else if (S.view === 'tests') renderTestsView();
+  else if (S.view === 'history') renderHistoryView();
+  else if (S.view === 'environments') renderEnvView(S.envEdit);
+  else if (S.view === 'presets') renderPresetView(S.presetId);
+  else if (S.view === 'settings') renderSettingsView();
 };
 
-$('importBtn').onclick = async () => {
-  const fmt = await modal.pick('Import', [
-    { value: 'postman', label: 'Postman collection JSON', hint: '.json file' },
-    { value: 'openapi', label: 'OpenAPI 3.x spec JSON', hint: '.json file' },
-    { value: 'curl', label: 'curl command', hint: 'paste text' },
-  ]);
-  if (!fmt) return;
-  if (fmt === 'curl') {
-    const curlCmd = await modal.prompt('Paste curl command', {
-      placeholder: 'curl --location ...',
-      multiline: true,
-      ok: 'Import curl',
-    });
-    if (!curlCmd) return;
+function importPreviewText(format, preview, conflictNote='') {
+  const warnings=Array.isArray(preview.warnings)?preview.warnings:[];
+  const lines=warnings.map(item=>{
+    if(typeof item==='string')return `- ${item}`;
+    const where=[item.path,item.location,item.name].filter(Boolean).join(' / ');
+    return `- ${where?where+': ':''}${item.message||item.warning||JSON.stringify(item)}`;
+  });
+  const details=[
+    `${format} preview: ${Number(preview.requests)||0} requests`,
+    warnings.length?`Warnings (${warnings.length}):\n${lines.join('\n')}`:'No import warnings.',
+    conflictNote,
+    'Review the preview before committing. The original JSON stays in memory while you review.'
+  ].filter(Boolean);
+  return details.join('\n\n');
+}
+
+async function confirmBulkImport(endpoint, source, format, initialPreview) {
+  let preview=initialPreview, conflictNote='';
+  for(;;) {
+    if(!await modal.confirm(importPreviewText(format,preview,conflictNote),{ok:'Import collection'}))return {cancelled:true};
     try {
-      const current = S.reqId && findReqMeta(S.reqId);
-      const created = await api('/api/import/curl', { method: 'POST',
-        body: { collectionId: current ? current.col.id : (S.state.collections[0]?.id || 0), curl: curlCmd.trim() } });
-      toast('curl imported');
+      const target=preview.workspaceHash?`${endpoint}?workspaceHash=${encodeURIComponent(preview.workspaceHash)}`:endpoint;
+      if(String(S.state?.storageMode||'').toLowerCase().includes('file')&&!preview.workspaceHash)throw new Error('The workspace changed or its revision is unavailable. The source text is retained; reload and preview again.');
+      return {out:await api(target,{method:'POST',body:source}),preview};
+    } catch(e) {
+      if(e.status!==409||(!preview.workspaceHash&&!String(S.state?.storageMode||'').toLowerCase().includes('file')))throw e;
       await refresh();
-      S.openCols.add(created.collectionId);
-      renderSide();
-      openRequest(created.id);
-    } catch (e) { toast(e.message, true); }
-    return;
+      preview=await api(`${endpoint}?preview=1`,{method:'POST',body:source});
+      conflictNote='The workspace changed before commit. Relay reloaded and refreshed this preview. Review it and confirm again to retry; no commit was repeated automatically.';
+    }
   }
-  $('importFile').dataset.mode = fmt;
-  $('importFile').click();
+}
+
+async function showImportFailure(error, source, backupName) {
+  const sourceId=error.sourceId||error.data?.sourceId||'';
+  const content=h('div',{class:'importForm',style:'display:grid;gap:10px'},
+    h('p',{role:'alert'},`Import did not complete: ${error.message||'unknown error'}`),
+    sourceId?h('p',{class:'note'},`Original source retained by Relay (source ID: ${sourceId}).`):h('p',{class:'note'},'The original JSON text is retained in this dialog for download.'),
+    sourceId?h('a',{class:'btn',href:'/api/import/source/'+encodeURIComponent(sourceId),download:backupName},'Download original JSON'):h('button',{class:'btn',onclick:()=>saveBlob(new Blob([source],{type:'application/json'}),backupName)},'Download original JSON'));
+  toast(error.message||'Import failed',true);
+  await modal.form('Import not completed',{content,ok:'Close',submit:()=>null});
+}
+
+$('importBtn').onclick = async () => {
+  const mode = h('select', { 'aria-label':'Import format' },
+    h('option', { value:'postman' }, 'Postman collection JSON'),
+    h('option', { value:'openapi' }, 'OpenAPI 3.x spec JSON'),
+    h('option', { value:'curl' }, 'curl command'));
+  const help = h('p', { class:'note' }, 'Choose a format. JSON imports show a preview and warnings before they are saved.');
+  const curl = h('textarea', { 'aria-label':'curl command', placeholder:'curl --request GET https://api.example.test/path', value:S.lastCurlDraft, rows:'7', style:'width:100%;display:none' });
+  const updateImportMode = () => { const isCurl = mode.value === 'curl'; curl.style.display = isCurl ? 'block' : 'none'; curl.hidden = !isCurl; help.textContent = isCurl ? 'The parsed request will be added to the current collection or a new collection.' : mode.value === 'postman' ? 'Choose a JSON file next. Relay previews request count and warnings before commit.' : 'Choose an OpenAPI JSON file next. Relay imports it into the workspace.'; };
+  mode.addEventListener('change', updateImportMode); mode.addEventListener('input', updateImportMode);
+  updateImportMode();
+  const result = await modal.form('Import into Relay', { content:h('div', { class:'importForm', style:'display:grid;gap:10px' }, h('label', {}, 'Format', mode), help, curl), ok:'Continue', submit:() => { if (mode.value === 'curl' && !curl.value.trim()) { toast('Paste a curl command first', true); curl.focus(); return false; } return { mode:mode.value, curl:curl.value }; } });
+  if (!result) return;
+  if (result.mode === 'curl') { if (result.curl.trim()) await importCurlText(result.curl); else toast('Paste a curl command first', true); return; }
+  $('importFile').dataset.mode = result.mode; $('importFile').click();
 };
 $('importFile').onchange = async () => {
   const f = $('importFile').files[0]; if (!f) return;
   const mode = $('importFile').dataset.mode || 'postman';
+  $('importFile').value = '';
   try {
+    if (mode === 'postman') {
+      const source=await f.text();
+      const backupName=slugify(f.name.replace(/\.json$/i,'')||'postman-source')+'.original.json';
+      const preview=await api('/api/import/postman?preview=1',{method:'POST',body:source});
+      let committed;
+      try{committed=await confirmBulkImport('/api/import/postman',source,'Postman',preview);}
+      catch(commitError){await showImportFailure(commitError,source,backupName);return;}
+      if(committed.cancelled)return;
+      const out=committed.out;
+      await refresh();
+      try {
+        if (out.sourceId) {
+          const backup = await apiBlob('/api/import/postman/source/' + encodeURIComponent(out.sourceId));
+          saveBlob(backup, backupName);
+        } else {
+          saveBlob(new Blob([source], { type: 'application/json' }), backupName);
+        }
+      } catch (e) {
+        saveBlob(new Blob([source], { type: 'application/json' }), backupName);
+        toast('Imported collection; downloaded the original JSON backup from this file', false);
+      }
+      toast(`Imported ${out.requests} requests; original JSON backup downloaded`);
+      return;
+    }
     if (mode === 'openapi') {
-      const out = await api('/api/import/openapi', { method: 'POST', body: await f.text() });
+      const source=await f.text();
+      const backupName=slugify(f.name.replace(/\.json$/i,'')||'openapi-source')+'.original.json';
+      if(String(S.state?.storageMode||'').toLowerCase().includes('file')) {
+        const preview=await api('/api/import/openapi?preview=1',{method:'POST',body:source});
+        let committed;
+        try{committed=await confirmBulkImport('/api/import/openapi',source,'OpenAPI',preview);}
+        catch(commitError){await showImportFailure(commitError,source,backupName);return;}
+        if(committed.cancelled)return;
+        const out=committed.out;
+        await refresh();
+        try {
+          if(out.sourceId) {
+            const backup=await apiBlob('/api/import/source/'+encodeURIComponent(out.sourceId));
+            saveBlob(backup,backupName);
+          } else saveBlob(new Blob([source],{type:'application/json'}),backupName);
+        } catch(e) { saveBlob(new Blob([source],{type:'application/json'}),backupName); }
+        toast(`OpenAPI imported: ${out.requests} requests; original JSON backup downloaded`);
+        return;
+      }
+      const out = await api('/api/import/openapi', { method: 'POST', body: source });
       toast(`OpenAPI imported: ${out.requests} requests`);
-    } else {
-      const out = await api('/api/import/postman', { method: 'POST', body: await f.text() });
-      toast(`Imported ${out.requests} requests`);
     }
     await refresh();
   } catch (e) { toast(e.message, true); }
-  $('importFile').value = '';
 };
 
 function requestIDsForFolder(col, folderId) {
@@ -2939,63 +3652,58 @@ async function openAPIExportFlow({ col: pinnedCol = null, requestIds: pinnedRequ
     await openTestManagementExport();
     return;
   }
+  if (S.reqDirty && S.req && !(await saveRequest())) return;
   const meta = S.reqId && findReqMeta(S.reqId);
   const col = pinnedCol || (meta ? meta.col : S.state.collections[0]);
   if (!col) return toast('No collection to export', true);
-
-  let requestIds = pinnedRequestIds;
-  let scopeLabel = pinnedLabel;
-  if (pinnedRequestIds === null && !pinnedLabel) {
-    const scopeOptions = [{ value: 'collection', label: 'Entire collection', hint: `${(col.requests || []).length} requests` }];
-    if (meta?.col.id === col.id && S.req?.folderId) {
-      const folder = (col.folders || []).find(f => String(f.id) === String(S.req.folderId));
-      if (folder) scopeOptions.push({ value: 'folder', label: `Current folder: ${folder.name}`, hint: `${requestIDsForFolder(col, folder.id).length} requests` });
-    }
-    if (meta?.col.id === col.id && S.req?.id) {
-      scopeOptions.push({ value: 'request', label: `Current request: ${S.req.spec.name}`, hint: S.req.spec.method });
-    }
-    const scope = scopeOptions.length === 1 ? 'collection' : await modal.pick('Export scope', scopeOptions);
-    if (!scope) return;
-    if (scope === 'folder') {
-      requestIds = requestIDsForFolder(col, S.req.folderId);
-      scopeLabel = (col.folders || []).find(f => String(f.id) === String(S.req.folderId))?.name || 'folder';
-    } else if (scope === 'request') {
-      requestIds = [S.req.id];
-      scopeLabel = S.req.spec.name;
-    } else {
-      requestIds = null;
-      scopeLabel = col.name;
-    }
+  const fixedScope = pinnedRequestIds !== null || !!pinnedLabel;
+  const scopes = [{ value:'collection', label:`Entire collection · ${col.name}`, count:(col.requests || []).length }];
+  if (meta?.col.id === col.id && S.req?.folderId) {
+    const folder = (col.folders || []).find(f => String(f.id) === String(S.req.folderId));
+    if (folder) scopes.push({ value:'folder', label:`Current folder · ${folder.name}`, count:requestIDsForFolder(col, folder.id).length });
   }
+  if (meta?.col.id === col.id && S.req?.id) scopes.push({ value:'request', label:`Current request · ${S.req.spec.name}`, count:1 });
+  const initialScope = fixedScope ? 'fixed' : 'collection';
+  const scope = h('select', { 'aria-label':'Export scope' }, ...(fixedScope ? [h('option',{value:'fixed'},pinnedLabel || 'Selected scope')] : scopes.map(x=>h('option',{value:x.value},x.label))));
+  scope.value = initialScope;
+  const format = h('select', { 'aria-label':'Export format' },
+    h('option',{value:'relay'},'Relay package (.zip)'), h('option',{value:'curl'},'curl command (one request)'),
+    h('option',{value:'postman'},'Postman Collection v2.1'), h('option',{value:'openapi'},'OpenAPI 3.x'), h('option',{value:'k6'},'k6 script'), h('option',{value:'playwright'},'Playwright API test'));
+  const initialCount = fixedScope ? (pinnedRequestIds?.length ?? (col.requests || []).length) : scopes.find(x=>x.value===initialScope)?.count || 0;
+  format.value = initialCount === 1 ? 'curl' : 'relay';
+  const env = h('select', { 'aria-label':'Environment export scope' }, h('option',{value:'none'},'No environments'), ...(S.envName ? [h('option',{value:'selected'},`Current environment · ${S.envName}`)] : []), h('option',{value:'all'},'All environments'));
+  env.value = S.envName ? 'selected' : 'none';
+  const envRow = h('label', { class:'exportEnvRow' }, 'Environments', env);
+  const preview = h('div', { class:'exportPreview', role:'status', 'aria-live':'polite' });
+  const countFor = value => fixedScope ? (pinnedRequestIds?.length ?? (col.requests || []).length) : scopes.find(x=>x.value===value)?.count || 0;
+  const refreshPreview = () => {
+    const count = countFor(scope.value); const curlOption = format.querySelector('option[value="curl"]'); curlOption.disabled = count !== 1;
+    if (count !== 1 && format.value === 'curl') format.value = 'relay';
+    envRow.hidden = format.value !== 'relay';
+    const label = fixedScope ? (pinnedLabel || 'Selected scope') : scopes.find(x=>x.value===scope.value)?.label;
+    preview.textContent = `Preview: ${count} request${count===1?'':'s'} · ${label} · ${format.options[format.selectedIndex].text}${format.value==='relay' ? ' · '+env.options[env.selectedIndex].text : ''}`;
+  };
+  scope.onchange = refreshPreview; format.onchange = refreshPreview; env.onchange = refreshPreview; refreshPreview();
+  const chosen = await modal.form('Export scope and preview', { content:h('div',{style:'display:grid;gap:12px;min-width:min(520px,75vw)'}, h('label',{},'Scope',scope), h('label',{},'Format',format), envRow, preview), ok:'Export', submit:()=>({scope:scope.value,format:format.value,env:env.value}) });
+  if (!chosen) return;
+  let requestIds = pinnedRequestIds, scopeLabel = pinnedLabel;
+  if (!fixedScope) {
+    if (chosen.scope === 'folder') { requestIds=requestIDsForFolder(col,S.req.folderId); scopeLabel=(col.folders||[]).find(f=>String(f.id)===String(S.req.folderId))?.name || 'folder'; }
+    else if (chosen.scope === 'request') { requestIds=[S.req.id]; scopeLabel=S.req.spec.name; }
+    else { requestIds=null; scopeLabel=col.name; }
+  }
+  if (chosen.format === 'curl' && !requestIds && (col.requests || []).length === 1) requestIds = [col.requests[0].id];
   if (requestIds && !requestIds.length) return toast('The selected scope has no requests', true);
-
-  const oneRequest = requestIds?.length === 1;
-  const format = await modal.pick('Export format', [
-    { value: 'relay', label: 'Relay collection package', hint: '.zip with editable request files and optional environments' },
-    ...(oneRequest ? [{ value: 'curl', label: 'curl command', hint: 'single selected request' }] : []),
-    { value: 'postman', label: 'Postman Collection v2.1' },
-    { value: 'openapi', label: 'OpenAPI 3.x spec' },
-    { value: 'k6', label: 'k6 load test script' },
-    { value: 'playwright', label: 'Playwright API test' },
-  ]);
-  if (!format) return;
+  const formatValue = chosen.format;
+  if (formatValue === 'curl' && requestIds?.length !== 1) return toast('curl export requires one request', true);
   try {
-    const q = new URLSearchParams({ format, env: S.envName || '' });
-    if (format === 'curl') q.set('request', String(requestIds[0]));
+    const q = new URLSearchParams({ format:formatValue, env: S.envName || '' });
+    if (formatValue === 'curl') q.set('request', String(requestIds[0]));
     else q.set('collection', String(col.id));
-    if (requestIds && format !== 'curl') q.set('requests', requestIds.join(','));
+    if (requestIds && formatValue !== 'curl') q.set('requests', requestIds.join(','));
 
-    let envMode = 'none';
-    if (format === 'relay') {
-      const envCount = (S.state.environments || []).length;
-      const envOptions = [
-        ...(S.envName ? [{ value: 'selected', label: `Selected environment: ${S.envName}`, hint: 'secret names only; values are never exported' }] : []),
-        { value: 'none', label: 'No environments' },
-        { value: 'all', label: 'All environments', hint: `${envCount} environment file${envCount === 1 ? '' : 's'}` },
-      ];
-      envMode = await modal.pick('Include environments', envOptions);
-      if (!envMode) return;
-      q.set('environments', envMode === 'all' ? '*' : envMode === 'selected' ? S.envName : '');
+    if (formatValue === 'relay') {
+      q.set('environments', chosen.env === 'all' ? '*' : chosen.env === 'selected' ? S.envName : '');
       const blob = await apiBlob('/api/export?' + q.toString());
       saveBlob(blob, slugify(scopeLabel || col.name) + '.relay.zip');
       toast('Relay package exported');
@@ -3011,21 +3719,157 @@ async function openAPIExportFlow({ col: pinnedCol = null, requestIds: pinnedRequ
       openapi: slugify(scopeLabel || col.name) + '.openapi.json',
     };
     const payload = typeof text === 'string' ? text : JSON.stringify(text, null, 2);
-    saveBlob(new Blob([payload], { type: format === 'postman' || format === 'openapi' ? 'application/json' : 'text/plain' }), names[format] || 'export.txt');
-    toast(format + ' exported');
+    saveBlob(new Blob([payload], { type: formatValue === 'postman' || formatValue === 'openapi' ? 'application/json' : 'text/plain' }), names[formatValue] || 'export.txt');
+    toast(formatValue + ' exported');
   } catch (e) { toast(e.message, true); }
 }
 
 $('exportBtn').onclick = () => openAPIExportFlow();
 
 /* ---------- request workbench ---------- */
-async function openRequest(id) {
+function requestTabKey(id, env) { return JSON.stringify([String(id), env || '']); }
+async function offerRequestDraftRecovery(request) {
+  const key=String(request?.id||'');
+  if(!key)return {request,dirty:false,stale:false};
+  let record;
+  try { record=await api(`/api/requests/${encodeURIComponent(key)}/draft`); }
+  catch { toast('Relay could not check for a local recovery copy. The saved request is shown; keep this window open until draft storage is available.',true); return {request,dirty:false,stale:false}; }
+  if(!record?.exists)return {request,dirty:false,stale:false};
+  S.draftRevisionByRequest.set(key,Number(record.revision)||0);
+  let draft=record.draft;
+  if(typeof draft==='string') { try { draft=JSON.parse(draft); } catch { draft=null; } }
+  if(!draft?.spec||typeof draft.spec!=='object') {
+    toast('A saved recovery copy is unreadable. The saved request was left unchanged.',true);
+    return {request,dirty:false,stale:false};
+  }
+  const baseHash=String(record.baseContentHash||''), currentHash=String(request.contentHash||'');
+  const stale=!baseHash||!currentHash||baseHash!==currentHash;
+  const when=record.updatedAt?new Date(record.updatedAt).toLocaleString():'unknown time';
+  const prompt=stale
+    ? `A local unsaved draft from ${when} is available, but the saved request changed after that draft was captured. Recover it as a dirty draft? Relay will preserve the old base revision and block saving until you compare or explicitly confirm an overwrite. Choosing Discard removes this stored draft. Recovery copies are local plaintext, like request definitions.`
+    : `A local unsaved draft from ${when} is available. Recover it into the editor? The saved request will not change until you save. Choosing Discard removes this stored draft. Recovery copies are local plaintext, like request definitions.`;
+  if(!await modal.confirm(prompt,{ok:'Recover draft',cancel:'Discard draft'})) {
+    try { await api(`/api/requests/${encodeURIComponent(key)}/draft`,{method:'DELETE',body:{revision:Number(record.revision)||0}}); S.draftRevisionByRequest.delete(key); }
+    catch(e) { toast(e.status===409?'A newer recovery copy exists and was kept.':'Could not remove the local recovery copy.',true); }
+    return {request,dirty:false,stale:false};
+  }
+  const recovered={...request,spec:structuredClone(draft.spec),contentHash:baseHash};
+  S.draftEditByRequest.delete(key);
+  return {request:recovered,dirty:true,stale};
+}
+function persistRequestTabMetadata() {
   try {
-    if (S.reqDirty && S.req && S.reqId !== id) await saveRequest();
-    const r = await api('/api/requests/' + id);
-    S.reqId = id; S.req = r; S.last = null; S.respFormat = null;
+    const tabs = S.requestTabOrder.map(key => { const t = S.requestTabCache.get(key); return t ? { id: t.id, env: t.env, editorTab: t.editorTab } : null; }).filter(Boolean);
+    const active = S.requestTabCache.get(S.activeRequestTabKey);
+    localStorage.requestTabsV1 = JSON.stringify({ tabs, active: active ? { id: active.id, env: active.env } : null });
+  } catch { /* Browser storage can be unavailable; requests and drafts remain in memory. */ }
+}
+function captureActiveRequestTab() {
+  if (!S.req?.id) return null;
+  const key = requestTabKey(S.req.id, S.envName);
+  let rec = S.requestTabCache.get(key);
+  if (!rec) { rec = { key, id: S.req.id, env: S.envName, editorTab: S.tab }; S.requestTabCache.set(key, rec); }
+  Object.assign(rec, { request: S.req, dirty: S.reqDirty, saveFailed: S.saveFailed, saveConflict: S.saveConflict, revision:S.reqRevision, editorTab: S.tab, last: S.last });
+  if (!S.requestTabOrder.includes(key)) S.requestTabOrder.push(key);
+  S.activeRequestTabKey = key;
+  persistRequestTabMetadata();
+  return rec;
+}
+function renderRequestTabs() {
+  const bar = h('div', { class: 'requestTabs', role: 'tablist', 'aria-label': 'Open requests' });
+  for (const key of S.requestTabOrder) {
+    const rec = S.requestTabCache.get(key); if (!rec) continue;
+    const meta = findReqMeta(rec.id);
+    bar.append(h('div', { class: 'requestTab', role: 'tab', tabindex: key === S.activeRequestTabKey ? '0' : '-1', 'aria-selected': String(key === S.activeRequestTabKey), 'aria-label': `${meta?.meta?.method || ''} ${meta?.meta?.name || 'Request ' + rec.id} in ${rec.env || 'No environment'}`, onclick: () => switchRequestTab(key), onkeydown: e => {
+      const tabs = [...bar.querySelectorAll('.requestTab')], i = tabs.indexOf(e.currentTarget);
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchRequestTab(key); }
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); tabs[(i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length]?.focus(); }
+    } },
+    h('span', { class: 'tabName' }, `${meta?.meta?.method || 'REQ'} ${meta?.meta?.name || 'Request ' + rec.id}`),
+      h('span', { class: 'tabEnv' }, rec.env || 'No env'),
+      rec.dirty ? h('span', { class: 'tabDirty', 'aria-label': 'Unsaved changes' }, '•') : null,
+      h('button', { class: 'requestTabClose', 'aria-label': `Close ${meta?.meta?.name || 'request ' + rec.id}`, onclick: async e => { e.stopPropagation(); await closeRequestTab(key); } }, '×')));
+  }
+  return bar;
+}
+async function switchRequestTab(key) {
+  if (key === S.activeRequestTabKey) return true;
+  if (S.reqDirty && S.req && !(await saveRequest())) toast('This tab still has an unsaved draft; it remains open in memory.', true);
+  captureActiveRequestTab();
+  const rec = S.requestTabCache.get(key); if (!rec) return false;
+  S.activeRequestTabKey = key; S.reqId = rec.id; S.req = rec.request;
+  S.envName = rec.env || ''; S.tab = rec.editorTab || 'headers'; S.reqDirty = !!rec.dirty;
+  S.saveFailed = !!rec.saveFailed; S.saveConflict = !!rec.saveConflict;
+  S.reqRevision = rec.revision || 0;
+  S.last = S.lastByRequest.get(responseKey(rec.id, rec.env)) || rec.last || null;
+  localStorage.envName = S.envName; renderEnvSel(); persistRequestTabMetadata(); renderSide(); renderRequest(); if(S.reqDirty)queueRequestDraftPersist(S.req,true); loadStats(rec.id);
+  return true;
+}
+async function closeRequestTab(key) {
+  if (S.sending && key === S.activeRequestTabKey) { toast('Wait for the active request to finish before closing its tab.', true); return; }
+  const rec = S.requestTabCache.get(key); if (!rec) return;
+  if (rec.dirty) {
+    if (key === S.activeRequestTabKey) {
+      if (!(await saveRequest())) {
+        if(!await flushRequestDraft(rec.id,S.req)){toast('Cannot close: the latest draft could not be confirmed in local recovery storage.',true);return;}
+        toast('Closing with a locally recoverable unsaved draft.',true);
+      }
+    } else {
+      try { const saved = await api('/api/requests/' + rec.id, { method: 'PUT', body: structuredClone(rec.request) }); if (saved?.contentHash) rec.request.contentHash = saved.contentHash; rec.dirty = false; await clearRequestDraft(rec.id); }
+      catch (e) {
+        if(!await flushRequestDraft(rec.id,rec.request)){toast('Cannot close: the latest draft could not be confirmed in local recovery storage.',true);return;}
+        toast('Closing with a locally recoverable unsaved draft.',true);
+      }
+    }
+  }
+  S.requestTabCache.delete(key); S.requestTabOrder = S.requestTabOrder.filter(x => x !== key);
+  if (key === S.activeRequestTabKey) {
+    S.activeRequestTabKey = '';
+    const next = S.requestTabOrder.at(-1);
+    S.req = null; S.reqId = null; S.last = null; S.reqDirty = false;
+    if (next) await switchRequestTab(next);
+    else renderEmptyWorkspace();
+  }
+  persistRequestTabMetadata(); renderRequest();
+}
+async function restoreRequestTabs() {
+  let saved; try { saved = JSON.parse(localStorage.requestTabsV1 || 'null'); } catch { return false; }
+  if (!saved?.tabs?.length) return false;
+  const valid = [];
+  for (const item of saved.tabs) {
+    try {
+      const latest = await api('/api/requests/' + encodeURIComponent(item.id));
+      const recovery = await offerRequestDraftRecovery(latest), req = recovery.request;
+      const key = requestTabKey(item.id, item.env || '');
+      S.requestTabCache.set(key, { key, id: item.id, env: item.env || '', editorTab: item.editorTab || 'headers', request: req, dirty: recovery.dirty, saveFailed: false, saveConflict: recovery.stale });
+      S.requestTabOrder.push(key); valid.push(key);
+    } catch { /* Dropped or deleted requests are ignored. */ }
+  }
+  persistRequestTabMetadata();
+  const active = saved.active && requestTabKey(saved.active.id, saved.active.env || '');
+  return await switchRequestTab(valid.includes(active) ? active : valid[0]) || false;
+}
+
+async function openRequest(id, env = S.envName) {
+  const cachedKey = requestTabKey(id, env);
+  if (S.requestTabCache.has(cachedKey)) return switchRequestTab(cachedKey);
+  const sequence = ++S.openRequestSeq;
+  const previousId = S.req?.id;
+  const previousRevision = S.reqRevision;
+  try {
+    if (S.reqDirty && S.req && !(await saveRequest())) toast('Unsaved draft stays available in its open tab.', true);
+    captureActiveRequestTab();
+    const latest = await api('/api/requests/' + id);
+    const recovery = await offerRequestDraftRecovery(latest), r = recovery.request;
+    if (sequence !== S.openRequestSeq) return false;
+    if (S.req?.id === previousId && S.reqDirty && S.reqRevision !== previousRevision && !(await saveRequest())) return false;
+    if (sequence !== S.openRequestSeq) return false;
+    S.reqId = id; S.envName = env || ''; S.req = r; S.last = S.lastByRequest.get(responseKey(id, S.envName)) || null; S.stats = null; S.statsRequestId = null;
+    S.tab = 'headers'; S.reqRevision = 0; S.reqDirty = false; S.saveFailed = false; S.saveConflict = recovery.stale; S.respFormat = null;
+    const key = requestTabKey(id, S.envName); S.activeRequestTabKey = key; S.requestTabCache.set(key, { key, id, env:S.envName, request:r, dirty:recovery.dirty, saveConflict:recovery.stale, editorTab:S.tab, last:S.last }); if(!S.requestTabOrder.includes(key)) S.requestTabOrder.push(key); persistRequestTabMetadata(); renderEnvSel(); setReqDirty(recovery.dirty);
     renderSide(); renderRequest();
     loadStats(id);
+    return true;
   } catch (e) { toast(e.message, true); }
 }
 
@@ -3053,6 +3897,82 @@ function kvTable(obj, { onchange, secretKeys } = {}) {
   const wrap = h('div', {}, table,
     h('button', { class: 'addRow', onclick: () => addRow() }, '+ Add row'));
   return wrap;
+}
+
+function orderedEntryTable(entries, { kind, onchange } = {}) {
+  const isQuery = kind === 'query';
+  const source = Array.isArray(entries) ? entries : Object.entries(entries || {}).map(([key, value]) => ({ key, value: String(value ?? ''), disabled: false }));
+  let rows = source.map(e => ({ key: e.key || '', value: e.value || '', disabled: !!e.disabled }));
+  const table = h('table', { class: 'kv orderedEntries', 'aria-label': isQuery ? 'Ordered query parameters' : 'Ordered request headers' },
+    h('tr', {}, h('th', {}, 'On'), h('th', {}, 'Key'), h('th', {}, 'Value'), h('th', {}, 'Order')));
+  const sync = () => {
+    const next = [...table.querySelectorAll('tr[data-row]')].map(tr => {
+      const inputs = tr.querySelectorAll('input');
+      return { key: inputs[1].value, value: inputs[2].value, disabled: !inputs[0].checked };
+    });
+    rows = next;
+    onchange(next);
+  };
+  const reorder = (from, to) => {
+    if (to < 0 || to >= rows.length) return;
+    [rows[from], rows[to]] = [rows[to], rows[from]]; draw(); sync();
+  };
+  const draw = () => {
+    table.querySelectorAll('tr[data-row]').forEach(tr => tr.remove());
+    rows.forEach((entry, index) => {
+      const tr = h('tr', { 'data-row': 'true' },
+        h('td', {}, h('input', { type: 'checkbox', checked: !entry.disabled, 'aria-label': `Enable ${isQuery ? 'query parameter' : 'header'} ${entry.key || index + 1}`, onchange: sync })),
+        h('td', {}, varField('input', { value: entry.key, placeholder: isQuery ? 'Parameter' : 'Header', 'aria-label': `${isQuery ? 'Parameter' : 'Header'} name`, oninput: sync })),
+        h('td', {}, varField('input', { value: entry.value, placeholder: 'Value', 'aria-label': `${isQuery ? 'Parameter' : 'Header'} value`, oninput: sync })),
+        h('td', { class: 'orderedActions' },
+          h('button', { class: 'delRow', 'aria-label': 'Move row up', title: 'Move up', disabled: index === 0 ? '' : undefined, onclick: () => reorder(index, index - 1) }, '↑'),
+          h('button', { class: 'delRow', 'aria-label': 'Move row down', title: 'Move down', disabled: index === rows.length - 1 ? '' : undefined, onclick: () => reorder(index, index + 1) }, '↓'),
+          h('button', { class: 'delRow', 'aria-label': 'Delete row', onclick: () => { rows.splice(index, 1); draw(); sync(); } }, '×')));
+      table.append(tr);
+    });
+  };
+  draw();
+  const add = () => { rows.push({ key: '', value: '', disabled: false }); draw(); sync(); table.querySelector('tr[data-row]:last-child input')?.focus(); };
+  const paste = async () => {
+    const text = await modal.prompt(isQuery ? 'Paste query parameters (one key=value per line)' : 'Paste headers (one Header: value per line)');
+    if (text == null) return;
+    const parsed = text.split(/\r?\n/).map(line => {
+      const sep = isQuery ? line.indexOf('=') : line.indexOf(':');
+      if (sep < 0) return null;
+      return { key: line.slice(0, sep).trim(), value: line.slice(sep + 1).trim(), disabled: false };
+    }).filter(e => e && e.key);
+    rows.push(...parsed); draw(); sync();
+  };
+  return h('div', { class: 'orderedEntryEditor' }, table,
+    h('div', { class: 'orderedEntryTools' }, h('button', { class: 'addRow', onclick: add }, '+ Add row'), h('button', { class: 'addRow', onclick: paste }, 'Paste rows')));
+}
+
+function queryEntriesFromURL(url, previous = []) {
+  const mark = String(url || '').indexOf('?');
+  if (mark < 0) return [];
+  const source = String(url).slice(mark + 1).split('#')[0];
+  const disabled = new Map();
+  for (const e of previous) { const k = `${e.key}\u0000${e.value}`; const q = disabled.get(k) || []; q.push(!!e.disabled); disabled.set(k, q); }
+  return [...new URLSearchParams(source)].map(([key, value]) => {
+    const queue = disabled.get(`${key}\u0000${value}`) || [];
+    return { key, value, disabled: queue.length ? queue.shift() : false };
+  });
+}
+function queryMap(entries) {
+  const map = {};
+  for (const e of entries) if (e.key.trim() && !e.disabled) map[e.key.trim()] = e.value;
+  return map;
+}
+function updateURLFromQueryEntries(entries) {
+  const input = $('url'); if (!S.req || !input) return;
+  const url = S.req.spec.url || '';
+  const hashAt = url.indexOf('#'); const hash = hashAt >= 0 ? url.slice(hashAt) : '';
+  const withoutHash = hashAt >= 0 ? url.slice(0, hashAt) : url;
+  const base = withoutHash.split('?')[0];
+  const params = new URLSearchParams();
+  for (const e of entries) if (e.key.trim() && !e.disabled) params.append(e.key.trim(), e.value);
+  S.req.spec.url = base + (params.size ? '?' + params.toString() : '') + hash;
+  S.syncingQueryURL = true; input.value = S.req.spec.url; input.dispatchEvent(new Event('input', { bubbles: true })); S.syncingQueryURL = false;
 }
 
 function inheritedHeaderRows() {
@@ -3087,13 +4007,14 @@ function applyResponsePaneSize(layout = $('requestWorkspace')) {
     if (layout.isConnected) requestAnimationFrame(() => applyResponsePaneSize(layout));
     return;
   }
-  const splitterHeight = 12;
+  const compact = matchMedia('(max-width: 760px) and (max-height: 540px)').matches;
+  const splitterHeight = compact ? 10 : 12;
   const usable = Math.max(0, height - splitterHeight);
-  const minRequest = Math.min(200, usable * .40);
-  const minResponse = Math.min(280, usable * .50);
+  const minRequest = Math.min(compact ? 120 : 200, usable * (compact ? .38 : .40));
+  const minResponse = Math.min(compact ? 140 : 280, usable * (compact ? .48 : .50));
   const responseHeight = Math.max(minResponse, Math.min(usable - minRequest, usable * S.responsePaneRatio));
   const requestHeight = Math.max(0, usable - responseHeight);
-  layout.style.gridTemplateRows = `${requestHeight}px ${splitterHeight}px minmax(0, 1fr)`;
+  layout.style.gridTemplateRows = `${requestHeight}px ${splitterHeight}px minmax(${minResponse}px, 1fr)`;
   const splitter = layout.querySelector('.paneSplitter');
   if (splitter) splitter.setAttribute('aria-valuenow', String(Math.round(S.responsePaneRatio * 100)));
 }
@@ -3101,10 +4022,11 @@ function applyResponsePaneSize(layout = $('requestWorkspace')) {
 function setResponsePaneFromPointer(layout, clientY, persist = false) {
   const rect = layout.getBoundingClientRect();
   if (!rect.height) return;
-  const splitterHeight = 12;
+  const compact = matchMedia('(max-width: 760px) and (max-height: 540px)').matches;
+  const splitterHeight = compact ? 10 : 12;
   const usable = Math.max(1, rect.height - splitterHeight);
-  const minRequest = Math.min(200, usable * .40);
-  const minResponse = Math.min(280, usable * .50);
+  const minRequest = Math.min(compact ? 120 : 200, usable * (compact ? .38 : .40));
+  const minResponse = Math.min(compact ? 140 : 280, usable * (compact ? .48 : .50));
   const requestHeight = Math.max(minRequest, Math.min(usable - minResponse, clientY - rect.top));
   S.responsePaneRatio = Math.min(.75, Math.max(.30, (usable - requestHeight) / usable));
   applyResponsePaneSize(layout);
@@ -3169,53 +4091,60 @@ function responsePaneSplitter(layout) {
 window.addEventListener('resize', () => requestAnimationFrame(() => applyResponsePaneSize()));
 
 function renderRequest() {
+  if (!S.req) return;
+  captureActiveRequestTab();
   const spec = S.req.spec;
   const meta = findReqMeta(S.reqId);
   $('crumb').innerHTML = '';
   $('crumb').append('Workspace / ', h('b', {}, meta ? meta.col.name : ''), ' / ', spec.name);
 
   const work = $('work'); work.innerHTML = '';
+  work.append(renderRequestTabs());
   const layout = h('div', { class: 'requestWorkspace', id: 'requestWorkspace' });
   layout.classList.toggle('responseMaximized', S.responseMaximized);
   work.append(layout);
   const save = debounce(async () => { await saveRequest(); }, 500);
 
-  setReqDirty(false);
-
   const editor = h('div', { class: 'card requestEditor' },
     h('div', { class: 'reqHead' },
-      h('input', { id: 'reqName', value: spec.name, onchange: (e) => { spec.name = e.target.value; setReqDirty(true); save(); } }),
+      h('input', { id: 'reqName', 'aria-label': 'Request name', value: spec.name, onchange: (e) => { spec.name = e.target.value; setReqDirty(true); save(); } }),
       h('button', { class: 'iconBtn', id: 'saveReqBtn', title: 'Save request now', onclick: () => saveRequest(true) }, 'Save'),
-      h('button', { class: 'iconBtn', title: 'Delete request', onclick: deleteRequest }, '🗑')),
+      h('button', { class: 'iconBtn', title: 'Delete request', 'aria-label': 'Delete request', onclick: deleteRequest }, '🗑')),
     h('div', { id: 'urlRow' },
-      h('select', { id: 'method', onchange: (e) => { spec.method = e.target.value; setReqDirty(true); save(); } },
+      h('select', { id: 'method', 'aria-label': 'HTTP method', onchange: (e) => { spec.method = e.target.value; setReqDirty(true); save(); } },
         METHODS.map(m => h('option', { value: m, selected: spec.method === m ? '' : undefined }, m))),
-      varField('input', { class: 'urlField', id: 'url', value: spec.url, placeholder: 'https://{{baseUrl}}/path',
-        oninput: (e) => { spec.url = e.target.value; setReqDirty(true); save(); } }),
-      h('button', { class: 'btn dark', id: 'sendBtn', onclick: send }, 'Send'),
+      varField('input', { class: 'urlField', id: 'url', 'aria-label': 'Request URL', value: spec.url, placeholder: 'https://{{baseUrl}}/path',
+        oninput: (e) => { spec.url = e.target.value; if (!S.syncingQueryURL) { spec.queryEntries = queryEntriesFromURL(spec.url, spec.queryEntries || []); spec.query = queryMap(spec.queryEntries); } setReqDirty(true); save(); } }),
+      h('button', { class: 'btn dark', id: 'sendBtn', ...(S.sending ? { disabled: '' } : {}), onclick: send }, S.sendPhase || 'Send'),
+      h('span', { id: 'sendProgress', role: 'status', 'aria-live': 'polite', class: 'srOnly' }, S.sendPhase ? `${S.sendPhase} request` : ''),
     ),
     h('div', { style: 'padding:0 12px 10px', id: 'urlVarWrap' }),
-    h('div', { class: 'tabs' }, ['params', 'authorization', 'headers', 'body', 'assertions', 'scripts', 'vars'].map(t =>
-      h('button', { class: S.tab === t ? 'on' : '', onclick: () => { S.tab = t; renderRequest(); } },
+    h('div', { class: 'tabs', role: 'tablist', 'aria-label': 'Request editor sections' }, ['params', 'authorization', 'headers', 'body', 'assertions', 'scripts', 'vars'].map(t =>
+      h('button', { id: `request-tab-${t}`, role: 'tab', 'aria-controls': 'tabBody', 'data-tab-group': 'request', 'data-tab': t, 'aria-selected': String(S.tab === t), tabindex: S.tab === t ? '0' : '-1', class: S.tab === t ? 'on' : '',
+        onkeydown: e => arrowTabKey(e, S.tab, ['params','authorization','headers','body','assertions','scripts','vars'], next => { S.tab = next; renderRequest(); }, 'request'),
+        onclick: () => { S.tab = t; renderRequest(); } },
         t[0].toUpperCase() + t.slice(1),
         t === 'headers' && Object.keys(spec.headers || {}).length ? h('span', { class: 'n' }, Object.keys(spec.headers).length) : '',
         t === 'scripts' && (spec.scripts?.preRequest || spec.scripts?.tests) ? h('span', { class: 'n' }, '●') : ''))),
-    h('div', { class: 'tabBody', id: 'tabBody' }));
+    h('div', { class: 'tabBody', id: 'tabBody', role: 'tabpanel', 'aria-labelledby': `request-tab-${S.tab}` }));
   layout.append(editor);
+  refreshDraftStatus();
   const urlVarWrap = editor.querySelector('#urlVarWrap');
   const urlChips = renderVarChips(spec.url || '', { title: 'URL variables' });
   if (urlChips) urlVarWrap.append(urlChips);
 
   const tb = editor.querySelector('#tabBody');
   if (S.tab === 'params') {
-    tb.append(kvTable(spec.query, { onchange: (v) => { spec.query = v; setReqDirty(true); save(); } }));
+    const entries = spec.queryEntries?.length ? spec.queryEntries : (String(spec.url || '').includes('?') ? queryEntriesFromURL(spec.url) : Object.entries(spec.query || {}).map(([key,value]) => ({ key, value: String(value ?? ''), disabled: false })));
+    tb.append(orderedEntryTable(entries, { kind: 'query', onchange: (v) => { spec.queryEntries = v; spec.query = queryMap(v); updateURLFromQueryEntries(v); setReqDirty(true); save(); } }));
   } else if (S.tab === 'headers') {
     tb.append(h('div', { class: 'note', style: 'margin-bottom:8px' }, 'Header values support variables, e.g. Authorization: Bearer {{apiToken}}'));
-    const hdrText = Object.entries(spec.headers || {}).map(([k, v]) => `${k}: ${v}`).join('\n');
+    const headerEntries = spec.headerEntries?.length ? spec.headerEntries : Object.entries(spec.headers || {}).map(([key,value]) => ({ key, value: String(value ?? ''), disabled: false }));
+    const hdrText = headerEntries.map(e => `${e.key}: ${e.value}`).join('\n');
     const hdrChips = renderVarChips(hdrText, { title: 'Header variables' });
     if (hdrChips) tb.append(hdrChips);
     const inh = inheritedHeaderRows(); if (inh) tb.append(inh);
-    tb.append(kvTable(spec.headers, { onchange: (v) => { spec.headers = v; setReqDirty(true); save(); } }));
+    tb.append(orderedEntryTable(headerEntries, { kind: 'header', onchange: (v) => { spec.headerEntries = v; spec.headers = queryMap(v); setReqDirty(true); save(); } }));
   } else if (S.tab === 'vars') {
     tb.append(kvTable(spec.vars, { onchange: (v) => { spec.vars = v; setReqDirty(true); save(); } }));
   } else if (S.tab === 'authorization') {
@@ -3304,6 +4233,16 @@ function renderRequest() {
   requestAnimationFrame(() => applyResponsePaneSize(layout));
 
   renderMeta();
+  refreshTLSStatus();
+}
+
+async function refreshTLSStatus(value) {
+  const badge = $('tlsStatus');
+  if (!badge) return;
+  try {
+    const settings = typeof value === 'boolean' ? { insecure: value } : await api('/api/settings');
+    badge.hidden = !settings.insecure;
+  } catch { badge.hidden = true; }
 }
 
 /* ---------- JS syntax highlighter ---------- */
@@ -3870,28 +4809,103 @@ function renderScriptsTab(reqSpec, scripts, save) {
   return wrap;
 }
 
+function renderSendFailure(failure) {
+  return h('div', { class: 'upstreamError', role: 'alert', style: 'margin:10px 14px;border-color:var(--red)' },
+    h('b', {}, `Send failed · ${failure.stage}`),
+    h('p', {}, failure.message),
+    h('div', { class: 'errorMeta' }, h('span', {}, new Date(failure.at).toLocaleString()),
+      h('span', {}, 'Last successful response is retained below when available.')));
+}
+
+function clearResponsePreview() {
+  const key = S.req ? responseKey(S.req.id, S.envName) : '';
+  if (!key) return;
+  S.lastByRequest.delete(key); S.lastSuccessAt.delete(key); S.last = null;
+  const tab = S.requestTabCache.get(S.activeRequestTabKey); if (tab) tab.last = null;
+  S.respSearch = ''; S.respMatchIndex = 0; S.respFormat = null;
+  responseDisplayCache.response = null;
+  renderResponse();
+  toast('Displayed response cleared; history is unchanged.');
+}
+
+function responseSearchHtml(text, query, activeIndex) {
+  const source = String(text || ''), needle = String(query || '').trim();
+  if (!needle) return { html:'', count:0 };
+  const lower = source.toLocaleLowerCase(), q = needle.toLocaleLowerCase(), starts=[];
+  let at=0, count=0;
+  while ((at=lower.indexOf(q,at)) !== -1) { count++; if(starts.length<500) starts.push(at); at += Math.max(1,q.length); }
+  let html='', pos=0;
+  for (let i=0; i<Math.min(starts.length,500); i++) {
+    const start=starts[i]; html += escHtml(source.slice(pos,start)) + `<mark class="responseSearchHit${i===activeIndex?' current':''}">${escHtml(source.slice(start,start+q.length))}</mark>`; pos=start+q.length;
+  }
+  html += escHtml(source.slice(pos));
+  return {html,count};
+}
+
+function focusResponseSearchMatch() {
+  const body=$('respBody'); if(!body)return;
+  const hits=[...body.querySelectorAll('.responseSearchHit')]; if(!hits.length)return;
+  const index=((S.respMatchIndex%hits.length)+hits.length)%hits.length;
+  hits.forEach((el,i)=>el.classList.toggle('current',i===index));
+  hits[index].scrollIntoView({block:'center',inline:'nearest'});
+}
+
+function getResponseDisplay(r) {
+  if (responseDisplayCache.response === r && responseDisplayCache.pretty === S.respPretty && responseDisplayCache.format === S.respFormat) return responseDisplayCache.value;
+  const value = formatBodyForDisplay(r.headers, r.body, S.respPretty);
+  responseDisplayCache = { response:r, pretty:S.respPretty, format:S.respFormat, value };
+  return value;
+}
+
+function responseBodyIncomplete(r) {
+  if (!r) return false;
+  const buffered = Number(r.bufferedBytes), received = Number(r.actualBytes), expected = Number(r.contentLength);
+  return !!r.truncated || r.bodyComplete === false ||
+    (Number.isFinite(buffered) && Number.isFinite(received) && received > buffered) ||
+    (Number.isFinite(expected) && expected >= 0 && Number.isFinite(received) && received < expected);
+}
+
 function renderResponse(card) {
   card = card || $('respCard'); if (!card) return;
   card.innerHTML = '';
   const r = S.last;
   card.classList.toggle('hasResp', !!r);
   const metaBar = h('div', { id: 'respMeta' }, h('span', { class: 'lbl' }, 'RESPONSE'));
+  const key = S.req ? responseKey(S.req.id, S.envName) : '';
+  const failure = key ? S.sendFailures.get(key) : null;
+  if (S.sending && S.sendingKey === key) metaBar.append(h('span', { class: 'pill', role: 'status' }, r ? 'New request in progress · previous response below' : 'Request in progress'));
   if (!r) {
     metaBar.append(h('span', { style: 'color:var(--faint)' }, '—'));
     card.append(metaBar);
+    if (failure) card.append(renderSendFailure(failure));
     return;
   }
   const ok = r.status >= 200 && r.status < 400;
   const bodyFormat = detectBodyFormat(r.headers, r.body);
   const availableFormats = getAvailableFormats(bodyFormat);
+  const transfer = [];
+  if (Number.isFinite(Number(r.bufferedBytes))) transfer.push(`Preview: ${fmtSize(Number(r.bufferedBytes))}`);
+  if (Number.isFinite(Number(r.actualBytes))) transfer.push(`Received total: ${fmtSize(Number(r.actualBytes))}`);
+  if (Number.isFinite(Number(r.contentLength)) && Number(r.contentLength) >= 0) transfer.push(`Content-Length: ${fmtSize(Number(r.contentLength))}`);
+  if (responseBodyIncomplete(r)) transfer.push('Body incomplete' + (r.truncated || (Number.isFinite(Number(r.bufferedBytes)) && Number.isFinite(Number(r.actualBytes)) && Number(r.actualBytes) > Number(r.bufferedBytes)) ? ' · preview truncated' : ''));
   metaBar.append(
     h('span', { class: 'pill ' + (ok ? 'ok' : 'bad') }, h('span', { class: 'dot' }), `${r.status} ${esc(r.statusText).replace(/^\d+ /, '')}`),
     h('span', {}, `Time: ${r.timing.total.toFixed(0)}ms`),
-    h('span', {}, `Size: ${fmtSize(r.size)}${r.truncated ? ' (view truncated)' : ''}`),
+    h('span', {}, `Preview body: ${fmtSize(r.size)}${responseBodyIncomplete(r) ? ' (incomplete)' : ''}`),
+    transfer.length ? h('span', { class: 'transferInfo', role: 'status', 'aria-live': 'polite' }, transfer.join(' · ')) : '',
+    h('span', { class:'note', title:'Display and copy controls use only the received response preview; full download is unavailable.' }, 'Received preview · full download unavailable'),
+    h('span', { style: 'color:var(--dim)' }, `Sent: ${S.lastSuccessAt.get(key) || 'time unavailable'}`),
     h('span', { class: 'formatBadge', title: headerValue(r.headers, 'content-type') || 'Detected from body' }, (S.respFormat || bodyFormat).toUpperCase()),
     h('span', { class: 'actions' },
-      h('button', { class: 'iconBtn', title: 'Toggle formatted/raw response', onclick: () => { S.respPretty = !S.respPretty; renderResponse(); } }, S.respPretty ? 'Raw' : 'Pretty'),
-      h('button', { class: 'iconBtn', title: 'Toggle line wrapping', onclick: () => { S.respWrap = !S.respWrap; renderResponse(); } }, S.respWrap ? 'No wrap' : 'Wrap'),
+      h('button', { class: 'iconBtn', 'aria-label':S.respPretty?'Show raw response preview':'Pretty-print response preview', title: 'Toggle formatted/raw response', onclick: () => { S.respPretty = !S.respPretty; renderResponse(); } }, S.respPretty ? 'Raw' : 'Pretty'),
+      h('button', { class: 'iconBtn', 'aria-label':S.respWrap?'Turn response wrapping off':'Turn response wrapping on', title: 'Toggle line wrapping', onclick: () => { S.respWrap = !S.respWrap; renderResponse(); } }, S.respWrap ? 'No wrap' : 'Wrap'),
+      h('input', { id:'responseSearch', type:'search', class:'responseSearch', value:S.respSearch, placeholder:'Find in preview', 'aria-label':'Search response preview', oninput:e=>{
+        S.respSearch=e.target.value; S.respMatchIndex=0;
+        const start=e.target.selectionStart, end=e.target.selectionEnd;
+        clearTimeout(responseSearchTimer);
+        responseSearchTimer=setTimeout(()=>{renderResponse(); const input=$('responseSearch'); if(input){input.focus();input.setSelectionRange(start,end);}},120);
+      } }),
+      h('button', { class:'iconBtn', 'aria-label':'Next response search result', title:'Next response search result', onclick:()=>{S.respMatchIndex++;focusResponseSearchMatch();} }, 'Next'),
       availableFormats.length > 0 ? h('div', { class: 'formatDropdown' },
         h('button', { class: 'iconBtn', title: 'Convert format', onclick: function(e) { 
           this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'block' ? 'none' : 'block';
@@ -3901,34 +4915,61 @@ function renderResponse(card) {
             onclick: () => { 
               S.respFormat = fmt; 
               document.querySelector('.formatDropdown .formatMenu').style.display = 'none';
-              renderResponse(); 
-            }
-          }, fmt.toUpperCase())))) : '',
+              renderResponse();
+            } }, fmt.toUpperCase())))) : '',
       h('button', { class: 'iconBtn', title: 'Reset request/response split', onclick: resetResponsePaneSize }, '↕ Reset'),
+      h('button', { class: 'iconBtn', 'aria-label':'Clear displayed response preview', title: 'Clear displayed response preview; history remains available', onclick: clearResponsePreview }, 'Clear'),
       h('button', { class: 'iconBtn', title: S.responseMaximized ? 'Restore request and response panes' : 'Maximize response pane', onclick: toggleResponseMaximized }, S.responseMaximized ? 'Restore' : 'Maximize'),
-      h('button', { class: 'iconBtn', title: 'Copy response body', onclick: () => copyText(r.body, 'Body') }, '⧉ Body'),
+      h('button', { class: 'iconBtn', 'aria-label':'Copy response preview body', title: 'Copy response preview body', onclick: () => copyText(r.body, 'Response preview') }, '⧉ Body'),
       h('button', { class: 'iconBtn', title: 'Copy as curl (secrets become $RELAY_SECRET_* references)', onclick: copyCurl }, '⧉ curl')));
   const nHdr = Object.keys(r.headers).length;
-  const tabs = h('div', { class: 'tabs' }, ['body', 'headers', 'timing'].map(t =>
-    h('button', { class: (S.respTab || 'body') === t ? 'on' : '', onclick: () => { S.respTab = t; renderResponse(); } },
+  const activeRespTab = S.respTab || 'body';
+  const responseTabs = ['body', 'headers', 'timing'];
+  const tabs = h('div', { class: 'tabs', role: 'tablist', 'aria-label': 'Response sections' }, responseTabs.map(t =>
+    h('button', { id: `response-tab-${t}`, role: 'tab', 'aria-controls': 'responsePanel', 'data-tab-group': 'response', 'data-tab': t, 'aria-selected': String(activeRespTab === t), tabindex: activeRespTab === t ? '0' : '-1', class: activeRespTab === t ? 'on' : '',
+      onkeydown: e => arrowTabKey(e, activeRespTab, responseTabs, next => { S.respTab = next; renderResponse(); }, 'response'),
+      onclick: () => { S.respTab = t; renderResponse(); } },
       t[0].toUpperCase() + t.slice(1),
       t === 'headers' && nHdr ? h('span', { class: 'n' }, nHdr) : '')));
-  card.append(metaBar, tabs);
+  const panel = h('div', { id: 'responsePanel', role: 'tabpanel', 'aria-labelledby': `response-tab-${activeRespTab}` });
+  card.append(metaBar, tabs, panel);
+  if (failure) card.append(renderSendFailure(failure));
   const t = S.respTab || 'body';
   if (t === 'body') {
-    const shown = formatBodyForDisplay(r.headers, r.body, S.respPretty);
-    card.append(h('pre', { id: 'respBody', class: S.respWrap ? '' : 'nowrap', html: highlightCode(shown.text, shown.format) }));
+    const shown = getResponseDisplay(r);
+    const pre = h('pre', { id: 'respBody', class: S.respWrap ? '' : 'nowrap' });
+    const found = responseSearchHtml(shown.text, S.respSearch, S.respMatchIndex);
+    const searchCount = h('span', { id:'responseSearchCount', class:'note', role:'status', 'aria-live':'polite', 'aria-atomic':'true' }, S.respSearch ? `${found.count} match${found.count===1?'':'es'} in preview` : '');
+    const searchInput = metaBar.querySelector('.responseSearch');
+    if (searchInput) searchInput.setAttribute('aria-describedby','responseSearchCount');
+    const nextSearch = [...metaBar.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === 'Next response search result');
+    if (nextSearch) nextSearch.disabled = found.count === 0;
+    panel.append(searchCount, pre);
+    if (S.respSearch) pre.innerHTML = found.html;
+    else if (shown.text.length > 262144) pre.textContent = shown.text;
+    else pre.innerHTML = highlightCode(shown.text, shown.format);
+    if (S.respSearch) requestAnimationFrame(focusResponseSearchMatch);
   } else if (t === 'headers') {
-    card.append(h('div', { class: 'hdrWrap' },
+    panel.append(h('div', { class: 'hdrWrap' },
       headerSection('Response headers', r.headers, null, nHdr),
       headerSection('Request headers · as sent', r.requestHeaders, r.headerOrigin,
         Object.keys(r.requestHeaders).length)));
   } else {
     const tm = r.timing, total = Math.max(tm.total, 0.001);
-    card.append(h('div', { id: 'timingBars' },
+    panel.append(h('div', { id: 'timingBars' },
       ['dns', 'connect', 'tls', 'ttfb', 'download'].map(k =>
         h('div', {}, `${k.padEnd(8)} `, h('b', {}, tm[k].toFixed(1) + 'ms'),
           h('span', { class: 'bar', style: `width:${Math.max(2, 220 * tm[k] / total)}px` })))));
+  }
+  if (Array.isArray(r.console) && r.console.length) {
+    const consolePanel = h('details', { class: 'metaCard', style: 'margin:10px 14px;padding:10px' },
+      h('summary', { style: 'cursor:pointer;font-weight:700' }, `Script console · ${r.console.length} message${r.console.length === 1 ? '' : 's'}`));
+    for (const item of r.console) {
+      const level = String(item.level || 'log').toLowerCase();
+      consolePanel.append(h('div', { style: `font:12px var(--mono);white-space:pre-wrap;margin-top:5px;color:${level === 'error' ? 'var(--red)' : level === 'warn' ? 'var(--amber)' : 'var(--dim)'}` },
+        `${level}: ${String(item.message ?? '')}`));
+    }
+    card.append(consolePanel);
   }
   if (!ok) {
     const upstream = renderUpstreamError(r.body);
@@ -4047,15 +5088,49 @@ function renderUpstreamError(text) {
 }
 
 async function saveRequest(showToast = false) {
-  if (!S.req) return;
+  if (!S.req) return true;
+  const requestId = S.req.id;
+  if (S.saving) {
+    while (S.saving) await new Promise(resolve => setTimeout(resolve, 10));
+    if (S.req?.id !== requestId) return false;
+    if (!S.reqDirty) return true;
+  }
+  if (!S.reqDirty && !showToast) return true;
+  S.saving = true;
+  const setStatus = (message, failed = false) => {
+    S.saveFailed = failed;
+    const status = $('draftStatus'), retry = $('retrySaveBtn');
+    if (status) status.textContent = S.saveConflict ? 'Save conflict · your draft is retained' : message;
+    if (retry) { retry.hidden = !failed; retry.textContent = S.saveConflict ? 'Review overwrite…' : 'Retry save'; }
+    $('reloadConflictBtn').hidden = !S.saveConflict;
+  };
   try {
-    await api('/api/requests/' + S.req.id, { method: 'PUT', body: S.req });
-    const meta = findReqMeta(S.req.id);
-    if (meta) { meta.meta.name = S.req.spec.name; meta.meta.method = S.req.spec.method; meta.meta.url = S.req.spec.url; }
-    setReqDirty(false);
+    while (S.req?.id === requestId && S.reqDirty) {
+      const revision = S.reqRevision;
+      const snapshot = structuredClone(S.req);
+      setStatus('Saving…');
+      const saved = await api('/api/requests/' + requestId, { method: 'PUT', body: snapshot });
+      if (saved && saved.contentHash && S.req?.id === requestId) S.req.contentHash = saved.contentHash;
+      S.saveConflict = false;
+      const meta = findReqMeta(requestId);
+      if (meta) { meta.meta.name = snapshot.spec.name; meta.meta.method = snapshot.spec.method; meta.meta.url = snapshot.spec.url; }
+      if (S.req?.id !== requestId) break;
+      if (S.reqRevision === revision) {
+        S.reqDirty = false;
+        S.saveFailed = false;
+        setReqDirty(false);
+      }
+    }
     renderSide();
-    if (showToast) toast('Request saved');
-  } catch (e) { toast(e.message, true); }
+    let cleared=true;
+    if(S.req?.id===requestId&&!S.reqDirty)cleared=await clearRequestDraft(requestId);
+    if (showToast) toast(cleared?'Request saved':'Request saved; a newer recovery copy was retained',!cleared);
+    return S.req?.id === requestId && !S.reqDirty;
+  } catch (e) { S.saveConflict = e.status === 409; toast(e.message, true); }
+  finally { S.saving = false; }
+  S.saveFailed = true;
+  setStatus('Unsaved changes · save failed', true);
+  return false;
 }
 
 async function deleteRequest() {
@@ -4071,32 +5146,63 @@ async function deleteRequest() {
   } catch (e) { toast(e.message, true); }
 }
 
+function setSendPhase(phase) {
+  S.sendPhase = phase;
+  const button = $('sendBtn');
+  if (button) button.textContent = phase || 'Send';
+  const progress = $('sendProgress');
+  if (progress) progress.textContent = phase ? `${phase} request` : '';
+}
+
 async function send() {
-  if (!S.req) return;
-  $('sendBtn').disabled = true;
+  if (!S.req || S.sending) return;
+  const requestId = S.req.id, env = S.envName;
+  const tabKey = requestTabKey(requestId, env);
+  S.sending = true;
+  S.sendingKey = responseKey(requestId, env);
+  const button = $('sendBtn');
+  if (button) button.disabled = true;
+  setSendPhase('Saving…');
+  renderResponse();
   try {
-    await saveRequest();
-    S.last = await api('/api/send', { method: 'POST', body: { requestId: S.req.id, env: S.envName } });
-    S.respFormat = null;
-    renderResponse(); loadStats(S.req.id); loadHistory();
-  } catch (e) { toast(e.message, true); }
-  finally { $('sendBtn').disabled = false; }
+    if (!(await saveRequest())) return;
+    setSendPhase('Sending…');
+    const result = await api('/api/send', { method: 'POST', body: { requestId, env } });
+    const key = responseKey(requestId, env);
+    S.lastByRequest.set(key, result);
+    S.lastSuccessAt.set(key, new Date().toLocaleString());
+    const tab = S.requestTabCache.get(tabKey); if (tab) tab.last = result;
+    S.sendFailures.delete(key);
+    if (S.req?.id === requestId && S.envName === env) {
+      S.last = result;
+      S.respFormat = null;
+      renderResponse(); loadStats(requestId); loadHistory();
+    }
+  } catch (e) {
+    const key = responseKey(requestId, env);
+    const stage = e.status === 422 ? 'Request resolution / validation' : e.status === 502 ? 'Network / DNS / TLS / transport' : e.status === 504 ? 'Timeout' : e.status ? `Send (HTTP ${e.status})` : 'Network / transport';
+    S.sendFailures.set(key, { message:e.message || 'Send failed', stage, at:new Date().toISOString() });
+    if (S.req?.id === requestId && S.envName === env) renderResponse();
+    toast(e.message, true);
+  }
+  finally { S.sending = false; S.sendingKey = ''; setSendPhase(''); if (button?.isConnected) button.disabled = false; const activeSend = $('sendBtn'); if (activeSend) activeSend.disabled = false; if (S.req?.id === requestId && S.envName === env) renderResponse(); }
 }
 
 async function loadStats(id) {
   try {
     const st = await api(`/api/requests/${id}/stats`);
-    S.stats = st; renderMeta();
+  if (S.req?.id !== id || S.view !== 'collections') return;
+    S.stats = st; S.statsRequestId = id; renderMeta();
   } catch { /* metrics are best-effort */ }
 }
 function renderMeta() {
   const m = $('meta'); m.hidden = false; m.innerHTML = '';
   m.append(h('h3', {}, 'Request Metadata'));
-  const st = S.stats || { count: 0, avgMs: 0, successRate: 0 };
+  const metrics = S.statsRequestId === S.req?.id && S.stats ? S.stats : { count: 0, avgMs: 0, successRate: 0 };
   m.append(h('div', { class: 'metaCard' }, h('span', { class: 'lbl' }, 'Performance metrics'),
-    h('span', { class: 'metric' }, h('b', {}, st.count ? st.avgMs.toFixed(0) + 'ms' : '—'), h('span', {}, 'Avg. latency')),
-    h('span', { class: 'metric' }, h('b', {}, st.count ? (st.successRate * 100).toFixed(1) + '%' : '—'), h('span', {}, 'Success rate')),
-    h('div', { style: 'color:var(--faint);font-size:10px;margin-top:6px' }, `${st.count} recorded sends`)));
+    h('span', { class: 'metric' }, h('b', {}, metrics.count ? metrics.avgMs.toFixed(0) + 'ms' : '—'), h('span', {}, 'Avg. latency')),
+    h('span', { class: 'metric' }, h('b', {}, metrics.count ? (metrics.successRate * 100).toFixed(1) + '%' : '—'), h('span', {}, 'Success rate')),
+    h('div', { style: 'color:var(--faint);font-size:10px;margin-top:6px' }, `${metrics.count} recorded sends`)));
   if (S.req) {
     const meta = findReqMeta(S.req.id);
     const sel = h('select', { style: 'width:100%;margin-top:4px', onchange: async (e) => {
@@ -4111,10 +5217,84 @@ function renderMeta() {
       h('div', {}, '🗀 ' + (meta ? meta.col.name : '')), sel));
   }
   m.append(h('div', { class: 'metaCard' }, h('span', { class: 'lbl' }, 'Storage'),
-    h('div', { style: 'color:var(--dim)' }, 'SQLite · local-first · no cloud')));
+    h('div', { style: 'color:var(--dim)' }, storageDescription())));
 }
 
 /* ---------- workspace settings ---------- */
+function renderCookieSettingsCard() {
+  const card = h('div', { class: 'card', style: 'padding:16px;margin-bottom:14px' });
+  card.append(h('h2', { style: 'margin:0 0 4px;font-family:var(--mono)' }, 'Cookie session'));
+  card.append(h('div', { class: 'note', style: 'margin-bottom:10px' }, 'Cookies are shared across sends in this workspace. Enter an absolute request URL to inspect cookies that match it.'));
+  const url = h('input', { type: 'text', value: S.req?.spec?.url || '', placeholder: 'https://api.example.test/path', style: 'flex:1;min-width:240px' });
+  const status = h('span', { role: 'status', 'aria-live': 'polite', style: 'color:var(--dim)' });
+  const rowsHost = h('div', { style: 'overflow:auto;margin-top:10px' });
+  let cookies = [];
+  let enabled = true;
+  const renderRows = () => {
+    rowsHost.innerHTML = '';
+    if (!cookies.length) { rowsHost.append(h('div', { class: 'note' }, 'No matching cookies.')); return; }
+    const table = h('table', { class: 'kv', style: 'min-width:800px' },
+      h('tr', {}, ...['Name', 'Value', 'Path', 'Domain', 'Secure', 'HttpOnly', 'SameSite', ''].map(label => h('th', {}, label))));
+    cookies.forEach((cookie, index) => {
+      const name = h('input', { type: 'text', value: cookie.name || '', placeholder: 'Name' });
+      const value = h('input', { type: 'password', value: cookie.value || '', placeholder: 'Value' });
+      const reveal = h('button', { class: 'iconBtn', title: 'Show or hide cookie value', onclick: () => { value.type = value.type === 'password' ? 'text' : 'password'; } }, 'Show');
+      const path = h('input', { type: 'text', value: cookie.path || '/', placeholder: '/' });
+      const domain = h('input', { type: 'text', value: cookie.domain || '', placeholder: 'host only' });
+      const secure = h('input', { type: 'checkbox', checked: cookie.secure === true });
+      const httpOnly = h('input', { type: 'checkbox', checked: cookie.httpOnly === true });
+      const sameSite = h('select', {}, [['0','Default'],['2','Lax'],['3','Strict'],['4','None']].map(([v,label]) => h('option', { value:v, selected:String(cookie.sameSite || 0) === v ? '' : undefined }, label)));
+      table.append(h('tr', {},
+        h('td', {}, name), h('td', {}, h('div', { style: 'display:flex;gap:4px' }, value, reveal)),
+        h('td', {}, path), h('td', {}, domain), h('td', {}, secure), h('td', {}, httpOnly), h('td', {}, sameSite),
+        h('td', {}, h('button', { class: 'delRow', title: 'Remove cookie', onclick: () => { cookies.splice(index, 1); renderRows(); } }, '×'))));
+      cookie._edit = { name, value, path, domain, secure, httpOnly, sameSite };
+    });
+    rowsHost.append(table);
+  };
+  const load = async () => {
+    try {
+      status.textContent = 'Loading…';
+      const result = await api('/api/cookies?url=' + encodeURIComponent(url.value.trim()));
+      cookies = result.cookies || []; enabled = result.enabled !== false;
+      toggle.checked = enabled;
+      renderRows(); status.textContent = `${cookies.length} matching cookie${cookies.length === 1 ? '' : 's'}`;
+    } catch (e) { status.textContent = e.message; toast(e.message, true); }
+  };
+  const toggle = h('input', { type: 'checkbox', checked: enabled, onchange: async e => {
+    try { const result = await api('/api/cookies/enabled', { method: 'PUT', body: { enabled: e.target.checked } }); enabled = result.enabled; status.textContent = enabled ? 'Cookie session enabled' : 'Cookie session disabled'; }
+    catch (err) { e.target.checked = enabled; status.textContent = err.message; toast(err.message, true); }
+  } });
+  const header = h('div', { class: 'formRow' }, h('label', {}, 'Cookie session enabled'), toggle, status);
+  const toolbar = h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;align-items:center' },
+    url,
+    h('button', { class: 'btn', onclick: load }, 'Load cookies'),
+    h('button', { class: 'btn', onclick: () => { cookies.push({ name:'', value:'', path:'/', sameSite:0 }); renderRows(); } }, 'Add cookie'),
+    h('button', { class: 'btn dark', onclick: async () => {
+      try {
+        const updated = cookies.map(cookie => {
+          const e = cookie._edit;
+          return { name:e.name.value.trim(), value:e.value.value, path:e.path.value || '/', domain:e.domain.value,
+            secure:e.secure.checked, httpOnly:e.httpOnly.checked, sameSite:Number(e.sameSite.value) || 0,
+            expires:cookie.expires || undefined, maxAge:cookie.maxAge || undefined };
+        });
+        const result = await api('/api/cookies', { method: 'PUT', body: { url:url.value.trim(), cookies:updated } });
+        cookies = result.cookies || []; renderRows(); status.textContent = 'Cookies saved';
+      } catch (e) { status.textContent = e.message; toast(e.message, true); }
+    } }, 'Save cookies'),
+    h('button', { class: 'btn', onclick: async () => {
+      try { await api('/api/cookies', { method:'DELETE', body:{ url:url.value.trim() } }); cookies=[]; renderRows(); status.textContent='Cookies cleared for this URL'; }
+      catch(e) { status.textContent=e.message; toast(e.message,true); }
+    } }, 'Clear this URL'),
+    h('button', { class: 'btn', onclick: async () => {
+      if (!await modal.confirm('Clear every cookie in this workspace session?', { danger:true, ok:'Clear all' })) return;
+      try { await api('/api/cookies', { method:'DELETE', body:{ url:'' } }); cookies=[]; renderRows(); status.textContent='All cookies cleared'; }
+      catch(e) { status.textContent=e.message; toast(e.message,true); }
+    } }, 'Clear all'));
+  card.append(header, toolbar, rowsHost);
+  return card;
+}
+
 async function renderSettingsView() {
   let set, xs;
   try {
@@ -4127,17 +5307,17 @@ async function renderSettingsView() {
   // — Engine settings card —
   const card = h('div', { class: 'card', style: 'padding:16px;margin-bottom:14px' });
   card.append(h('h2', { style: 'margin:0 0 4px;font-family:var(--mono)' }, 'Workspace settings'));
-  card.append(h('div', { style: 'color:var(--dim);margin-bottom:14px' }, 'Applied to every send from this workspace; stored in relay.db.'));
+  card.append(h('div', { style: 'color:var(--dim);margin-bottom:14px' }, 'Applied to sends from this workspace. Inspect or clear cookies by request origin.'));
   const save = debounce(async () => {
-    try { await api('/api/settings', { method: 'PUT', body: set }); toast('settings saved'); }
+    try { await api('/api/settings', { method: 'PUT', body: set }); toast('settings saved'); refreshTLSStatus(set.insecure); }
     catch (e) { toast(e.message, true); }
   }, 400);
   card.append(h('div', { class: 'formRow' }, h('label', {}, 'Request timeout'),
-    h('input', { type: 'text', value: set.timeoutSeconds, style: 'max-width:90px',
+    h('input', { type: 'text', 'aria-label': 'Request timeout in seconds', value: set.timeoutSeconds, style: 'max-width:90px',
       onchange: (e) => { set.timeoutSeconds = parseInt(e.target.value, 10) || 30; save(); } }),
     h('span', { style: 'color:var(--dim)' }, 'seconds (1–600)')));
   const check = (label, key, hint) => h('div', { class: 'formRow' }, h('label', {}, label),
-    h('input', { type: 'checkbox', style: 'width:auto', checked: set[key] ? '' : undefined,
+    h('input', { type: 'checkbox', 'aria-label': label, style: 'width:auto', checked: set[key] === true,
       onchange: (e) => { set[key] = e.target.checked; save(); } }),
     h('span', { style: 'color:var(--dim)' }, hint));
   card.append(check('Follow redirects', 'followRedirects', '3xx responses are followed automatically'));
@@ -4145,6 +5325,7 @@ async function renderSettingsView() {
   card.append(h('div', { class: 'note', style: 'margin-top:14px' },
     'Secrets are never stored here: environment secrets come from RELAY_SECRET_* process variables.'));
   work.append(card);
+  work.append(renderCookieSettingsCard());
 
   // — UI Mode settings card —
   const modeCard = h('div', { class: 'card', style: 'padding:16px;margin-bottom:14px' });
@@ -4158,7 +5339,7 @@ async function renderSettingsView() {
   modeRow.append(modeSelect);
   modeCard.append(modeRow);
   modeCard.append(h('div', { class: 'note', style: 'margin-top:10px' },
-    h('b', {}, 'Full mode: '), 'Includes Test Management, Mock Servers, Monitor, and Runner features for comprehensive API testing. ', 
+    h('b', {}, 'Full mode: '), 'Includes Test Management and collection test runner features. ',
     h('br', {}),
     h('b', {}, 'Basic mode: '), 'Hides Test Management features for simplified API client workflow. Test Management features are still available in Full mode.'));
   work.append(modeCard);
@@ -4184,8 +5365,19 @@ async function renderSettingsView() {
   xcard.append(xrow('Default component', 'component', 'API'));
   const hasXrayCreds = !!(xs.credentials?.hasClientId && xs.credentials?.hasClientSecret);
   const hasJiraCreds = !!(xs.credentials?.hasJiraEmail && xs.credentials?.hasJiraApiKey);
+  const credentialSource = String(xs.credentials?.source || 'none');
+  const credentialStorageNote = xs.credentials?.legacySQLitePresent
+    ? 'Legacy SQLite credentials remain in relay.db (plaintext at rest). Use explicit migration with a backup on Windows.'
+    : credentialSource.toLowerCase().includes('secure')
+      ? 'Credential storage: Secure local store.'
+      : credentialSource === 'stored'
+        ? 'Credential storage: SQLite (plaintext at rest).'
+        : credentialSource === 'environment'
+          ? 'Active credentials use environment variables; previously saved local credentials may still exist.'
+          : 'Credential storage: No locally stored credentials.';
   const credState = h('div', { class: 'note', style: 'margin:10px 0;display:grid;gap:4px' },
     h('div', {}, h('b', {}, 'Xray auth: '), hasXrayCreds ? 'ready' : 'missing client id/secret', ` (${xs.credentials?.source || 'none'})`),
+    h('div', { role:'status', 'aria-live':'polite' }, credentialStorageNote),
     h('div', {}, h('b', {}, 'Jira REST: '), hasJiraCreds ? 'ready for requirement links' : 'optional email/API key missing'));
   const cid = h('input', { type: 'text', placeholder: 'Xray client id' });
   const sec = h('input', { type: 'password', placeholder: 'Xray client secret' });
@@ -4242,7 +5434,12 @@ const sectionLbl = (text, extra) => h('div', { class: 'hdrTitle', style: 'paddin
 function renderCollectionSettings(c) {
   const card = settingsCard(c.name, 'Headers and variables here are inherited by every request in the collection.');
   const save = debounce(async () => {
-    try { await api('/api/collections/' + c.id, { method: 'PATCH', body: c }); await refresh(); }
+    try {
+      const saved = await api('/api/collections/' + c.id, { method: 'PATCH', body: c });
+      if (saved?.contentHash) c.contentHash = saved.contentHash;
+      if (saved?.workspaceHash) c.workspaceHash = saved.workspaceHash;
+      await refresh();
+    }
     catch (e) { toast(e.message, true); }
   }, 400);
   card.append(h('div', { class: 'formRow' }, h('label', {}, 'Name'),
@@ -4258,7 +5455,7 @@ function renderCollectionSettings(c) {
     folderList.append(h('span', { class: 'att' }, '🗀 ' + f.name + ' ',
       h('button', { class: 'delRow', title: 'Delete folder (and its requests)', onclick: async () => {
         if (!await modal.confirm(`Delete folder "${f.name}" and its requests?`, { danger: true, ok: 'Delete' })) return;
-        try { await api('/api/folders/' + f.id, { method: 'DELETE' }); await refresh(); renderCollectionSettings(findCol(c.id)); }
+        try { await api('/api/folders/' + f.id, { method: 'DELETE', body:{ contentHash:f.contentHash } }); await refresh(); renderCollectionSettings(findCol(c.id)); }
         catch (e) { toast(e.message, true); }
       } }, ' ✕')));
   }
@@ -4296,7 +5493,11 @@ function addAssertionFromHistory(assertion) {
 function renderFolderSettings(f, c) {
   const card = settingsCard(c.name + ' / ' + f.name, 'Headers and variables here apply to every request in this folder (they override collection-level values).');
   const save = debounce(async () => {
-    try { await api('/api/folders/' + f.id, { method: 'PATCH', body: f }); await refresh(); }
+    try {
+      const saved = await api('/api/folders/' + f.id, { method: 'PATCH', body: f });
+      if (saved?.contentHash) f.contentHash = saved.contentHash;
+      await refresh();
+    }
     catch (e) { toast(e.message, true); }
   }, 400);
   card.append(h('div', { class: 'formRow' }, h('label', {}, 'Name'),
@@ -4310,44 +5511,99 @@ function renderFolderSettings(f, c) {
 function findCol(id) { return S.state.collections.find(c => c.id === id); }
 
 /* ---------- runner view ---------- */
+function runJobActive(job) {
+  if (job?.cancelled) return false;
+  const state=String(job?.state||'running').toLowerCase();
+  return !['completed','complete','done','succeeded','success','failed','error','cancelled','canceled'].includes(state);
+}
+function runJobProgressView(col, cancel) {
+  const root=h('section',{class:'card',style:'padding:16px'},
+    h('div',{style:'display:flex;align-items:center;gap:10px;flex-wrap:wrap'},h('h2',{style:'margin:0;font-family:var(--mono)'},col.name),h('span',{class:'badge',id:'runJobState'},'QUEUED'),h('span',{class:'note',id:'runJobElapsed',style:'margin-left:auto'},'0 ms')),
+    h('div',{style:'display:flex;align-items:center;gap:10px;margin-top:14px'},h('div',{id:'runJobCurrent',role:'status','aria-live':'polite',style:'flex:1;min-width:0;overflow-wrap:anywhere'},'Preparing collection run…'),h('button',{class:'btn danger',id:'cancelRunJob',onclick:cancel},'Cancel run')),
+    h('progress',{id:'runJobProgress',max:'1',value:'0',style:'display:block;width:100%;height:10px;margin:10px 0'}),
+    h('div',{id:'runJobCounts',class:'note','aria-live':'polite'},'0 completed'),
+    h('div',{id:'runJobError',class:'runErr',role:'alert',hidden:true}),h('div',{id:'runJobResults',style:'margin-top:12px'}));
+  $('work').innerHTML=''; $('work').append(root);
+  const stateEl=root.querySelector('#runJobState'), elapsedEl=root.querySelector('#runJobElapsed'), currentEl=root.querySelector('#runJobCurrent');
+  const progress=root.querySelector('#runJobProgress'), counts=root.querySelector('#runJobCounts'), error=root.querySelector('#runJobError'), results=root.querySelector('#runJobResults'), cancelBtn=root.querySelector('#cancelRunJob');
+  let resultStamp='';
+  return { root, update(job,canceling=false) {
+    const state=String(job.state||'running').toUpperCase(); stateEl.textContent=state;
+    stateEl.className='badge '+(job.failed>0?'fail':job.cancelled||String(job.state||'').toLowerCase()==='cancelled'?'cancelled':runJobActive(job)?'':'pass');
+    elapsedEl.textContent=`${Number(job.elapsedMs||0).toFixed(0)} ms elapsed`;
+    const current=job.currentRequest;
+    currentEl.textContent=runJobActive(job)?`Current: ${typeof current==='string'?current:current?.name||current?.url||'Preparing next request…'}`:`Run ${state.toLowerCase()}`;
+    const total=Math.max(0,Number(job.total)||0), completed=Math.max(0,Number(job.completed)||0);
+    const cancelledCount=Math.max(0,Number(job.cancelledCount||0)), notRun=Math.max(0,total-completed-cancelledCount);
+    progress.max=total||1; progress.value=total?Math.min(total,completed+cancelledCount):0;
+    progress.setAttribute('aria-label',`Collection progress: ${completed} finished, ${cancelledCount} cancelled, ${notRun} not run of ${total||'unknown'}`);
+    counts.textContent=`${completed} finished of ${total||'unknown'} · ${Number(job.passed||0)} passed · ${Number(job.failed||0)} failed · ${cancelledCount} cancelled · ${notRun} not run`;
+    error.hidden=!job.error; error.textContent=job.error||'';
+    cancelBtn.disabled=!runJobActive(job)||canceling; cancelBtn.textContent=canceling?'Cancelling...':runJobActive(job)?'Cancel run':'Run finished';
+    const snapshot=JSON.stringify(job.results||[]);
+    if(snapshot!==resultStamp){resultStamp=snapshot;results.innerHTML='';for(const r of job.results||[])results.append(h('div',{class:'runRow'},h('span',{class:'ic '+(r.cancelled?'cancelled':r.passed?'ok':'bad')},r.cancelled?'–':r.passed?'✓':'×'),h('span',{class:'method m-'+(r.method||'GET')},r.method||'GET'),h('b',{},r.name||r.currentRequest||'(request)'),h('span',{style:'color:var(--dim);font-family:var(--mono);font-size:12px'},r.cancelled?'Cancelled':r.error?'error':`${r.status??'—'} · ${Number(r.durationMs||0).toFixed(0)}ms`)));}
+  }};
+}
 async function runCollection(col) {
-  $('crumb').innerHTML = '';
-  $('crumb').append('Collections / ', h('b', {}, col.name), ' / Run');
-  const work = $('work'); $('meta').hidden = true;
-  work.innerHTML = '<div class="empty">Running collection…</div>';
-  let out;
+  $('crumb').innerHTML = ''; $('crumb').append('Collections / ', h('b', {}, col.name), ' / Run');
+  const work=$('work'); $('meta').hidden=true; const generation=++S.runJobGeneration, env=S.envName;
+  const live=()=>generation===S.runJobGeneration && S.view==='collections' && work.contains(view.root);
+  let jobId='', cancelRequested=false, snapshot=null;
+  const view=runJobProgressView(col,async()=>{
+    if(!jobId||cancelRequested)return; cancelRequested=true;
+    const btn=$('cancelRunJob');if(btn){btn.disabled=true;btn.textContent='Cancelling...';}
+    try{const updated=await api('/api/run-jobs/'+encodeURIComponent(jobId)+'/cancel',{method:'POST'});if(updated?.id)snapshot=updated;if(live()&&snapshot)view.update(snapshot,cancelRequested);}
+    catch(e){cancelRequested=false;toast(e.message,true);if(live()&&snapshot)view.update(snapshot,cancelRequested);}
+  });
   try {
-    out = await api('/api/run', { method: 'POST', body: { collectionId: col.id, env: S.envName } });
-  } catch (e) { work.innerHTML = ''; work.append(h('div', { class: 'empty' }, e.message)); return; }
-  work.innerHTML = '';
-  S.run = out;
-  const failed = out.failed > 0;
+    snapshot=await api('/api/run-jobs',{method:'POST',body:{collectionId:col.id,env}});jobId=snapshot.id;
+    if(!jobId)throw new Error('Run job did not return an id');if(live())view.update(snapshot,cancelRequested);
+    while(runJobActive(snapshot)){await new Promise(resolve=>setTimeout(resolve,500));snapshot=await api('/api/run-jobs/'+encodeURIComponent(jobId));if(live())view.update(snapshot,cancelRequested);}
+  } catch(e) {
+    if(live()) {
+      const fallback=snapshot||{state:'error',completed:0,total:0,passed:0,failed:0,results:[]};
+      view.update({...fallback,error:`Run status unavailable: ${e.message}`},cancelRequested);
+      toast('Run status could not be refreshed. Partial results remain visible.',true);
+    }
+    return;
+  }
+  const results=snapshot.results||[],durations=results.filter(r=>!r.cancelled).map(r=>Number(r.durationMs)||0).sort((a,b)=>a-b);
+  const p95Ms=durations.length?durations[Math.min(durations.length-1,Math.ceil(durations.length*.95)-1)]:0;
+  const cancelledCount=Number(snapshot.cancelledCount)||results.filter(r=>r.cancelled).length;
+  const out={...snapshot,results,executed:Number(snapshot.completed??results.filter(r=>!r.cancelled).length),passed:Number(snapshot.passed)||0,failed:Number(snapshot.failed)||0,cancelledCount,notRun:Math.max(0,(Number(snapshot.total)||0)-Number(snapshot.completed||0)-cancelledCount),cancelled:!!snapshot.cancelled||/cancel/i.test(String(snapshot.state||'')),p95Ms,finishedAt:new Date().toISOString()};
+  S.run=out;if(!live())return;work.innerHTML='';
+  const failed = out.failed > 0 || ['failed','error'].includes(String(out.state||'').toLowerCase());
+  const runLabel = out.cancelled ? 'CANCELLED' : failed ? 'FAILED' : 'PASSED';
   work.append(h('div', { style: 'display:flex;align-items:center;gap:12px' },
     h('h2', { style: 'margin:0;font-family:var(--mono)' }, col.name),
-    h('span', { class: 'badge ' + (failed ? 'fail' : 'pass') }, failed ? 'FAILED' : 'PASSED'),
-    h('span', { style: 'margin-left:auto;color:var(--dim)' }, 'Run completed · ' + new Date(out.finishedAt).toLocaleString())));
+    h('span', { class: 'badge ' + (failed ? 'fail' : out.cancelled ? 'cancelled' : 'pass') }, runLabel),
+    h('span', { style: 'margin-left:auto;color:var(--dim)' }, `${out.cancelled ? 'Run cancelled' : 'Run completed'} · ${new Date(out.finishedAt).toLocaleString()}`)));
   work.append(h('div', { class: 'card sumRow', style: 'display:flex;padding:8px' },
-    sumCard('Tests executed', out.executed, ''),
+    sumCard('Finished', out.executed, ''),
     sumCard('Passed', out.passed, 'green'),
     sumCard('Failed', out.failed, 'red'),
+    sumCard('Cancelled', out.cancelledCount, 'neutral'),
+    sumCard('Not run', out.notRun, ''),
     sumCard('P95 latency', out.p95Ms.toFixed(0) + 'ms', '')));
   const list = h('div', { class: 'card' },
     h('div', { style: 'padding:10px 14px;border-bottom:1px solid var(--line)' },
       h('span', { class: 'lbl', style: 'font-size:10px;letter-spacing:.1em;color:var(--dim);font-weight:700' }, 'TEST RESULTS DETAIL')));
   for (const r of out.results) {
     list.append(h('div', { class: 'runRow' },
-      h('span', { class: 'ic ' + (r.passed ? 'ok' : 'bad') }, r.passed ? '✓' : '✕'),
+      h('span', { class: 'ic ' + (r.cancelled ? 'cancelled' : r.passed ? 'ok' : 'bad') }, r.cancelled ? '–' : r.passed ? '✓' : '✕'),
       h('span', { class: 'method m-' + r.method }, r.method),
       h('b', {}, r.name),
       h('span', { style: 'color:var(--dim);font-family:var(--mono);font-size:11.5px' },
-        r.error ? 'error' : `${r.status} · ${r.durationMs.toFixed(0)}ms`)));
-    if (r.error) list.append(h('div', { class: 'runErr' }, r.error));
+        r.cancelled ? 'cancelled' : r.error ? 'error' : `${r.status} · ${r.durationMs.toFixed(0)}ms`)));
+    if (r.cancelled) list.append(h('div', { class: 'runCancelled', role:'status' }, r.cancellationReason || 'Request cancelled before it finished'));
+    else if (r.error) list.append(h('div', { class: 'runErr' }, r.error));
     for (const a of r.assertions || []) if (!a.passed)
       list.append(h('div', { class: 'runErr' }, `AssertionError (${a.type}): ${a.message}`));
     for (const t of r.scriptTests || []) if (!t.passed)
       list.append(h('div', { class: 'runErr' }, `pm.test "${t.name}": ${t.error || 'failed'}`));
   }
 
+  if (!out.cancelled) {
   S.colPushTagExpr = S.colPushTagExpr || '';
   const tagInput = h('input', { type: 'text', class: 'tagExpr', placeholder: 'tag filter e.g. regression,!flaky', value: S.colPushTagExpr,
     oninput: (e) => { S.colPushTagExpr = e.target.value; } });
@@ -4388,6 +5644,7 @@ async function runCollection(col) {
     tagInput,
     h('div', { style: 'display:flex;gap:8px;margin-top:8px' }, previewBtn, xrayPushBtn),
     previewBox));
+  }
   work.append(list);
 }
 function sumCard(label, value, cls) {
@@ -4395,6 +5652,9 @@ function sumCard(label, value, cls) {
 }
 
 /* ---------- history view ---------- */
+let historyFilters = { url: '', status: 'all', age: 'all' };
+let historyCompareIds = [];
+const historyDetails = new Map();
 async function loadHistory() {
   try { S.history = await api('/api/history?limit=100'); } catch { S.history = []; }
   if (S.view === 'history') renderSide();
@@ -4403,36 +5663,74 @@ function renderHistoryView() {
   loadHistory().then(() => {
     $('crumb').innerHTML = ''; $('crumb').append('Workspace / ', h('b', {}, 'History'));
     const work = $('work'); $('meta').hidden = true; work.innerHTML = '';
-    work.append(h('div', { class: 'empty' }, S.history.length ? 'Select a send from the list to inspect its stored response.' : 'No requests sent yet.'));
+    const root = h('div',{class:'historyView'});
+    const heading = h('div', { style:'display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px' }, h('h2', { style:'margin:0' }, 'Request history'), h('span', { class:'note' }, 'Saved response snapshots; replay is unavailable because history does not store the full request.'));
+    const urlFilter = h('input', { type:'search', value:historyFilters.url, placeholder:'Filter URL or request name', 'aria-label':'Filter history by URL or request name' });
+    const statusFilter = h('select', { 'aria-label':'Filter history by status' }, h('option',{value:'all'},'Any status'), h('option',{value:'2xx'},'2xx'), h('option',{value:'3xx'},'3xx'), h('option',{value:'4xx'},'4xx'), h('option',{value:'5xx'},'5xx'));
+    statusFilter.value = historyFilters.status;
+    const ageFilter = h('select', { 'aria-label':'Filter history by time' }, h('option',{value:'all'},'Any time'), h('option',{value:'24h'},'Last 24 hours'), h('option',{value:'7d'},'Last 7 days'));
+    ageFilter.value = historyFilters.age;
+    const envFilter = h('select', { disabled:true, 'aria-label':'Filter history by environment', title:'Environment identity is not recorded in history.' }, h('option',{},'Environment unavailable'));
+    const list = h('div', { style:'display:grid;gap:6px;margin-top:10px' });
+    const detailArea = h('div', { style:'margin-top:16px' });
+    const controls = h('div', { style:'display:flex;flex-wrap:wrap;gap:8px;align-items:center' }, urlFilter, statusFilter, envFilter, ageFilter,
+      h('button',{class:'btn',onclick:()=>{historyCompareIds=[];renderHistoryView();}},'Clear comparison'));
+    const renderRows = () => {
+      list.innerHTML = '';
+      const now = Date.now(), needle = urlFilter.value.trim().toLowerCase();
+      const rows = S.history.filter(e => {
+        if (needle && !(String(e.url||'').toLowerCase().includes(needle) || String(e.requestName||'').toLowerCase().includes(needle))) return false;
+        if (statusFilter.value !== 'all' && Math.floor(Number(e.status)/100) + 'xx' !== statusFilter.value) return false;
+        const sent = new Date(e.sentAt).getTime();
+        if (ageFilter.value === '24h' && (!sent || now - sent > 86400000)) return false;
+        if (ageFilter.value === '7d' && (!sent || now - sent > 604800000)) return false;
+        return true;
+      });
+      if (!rows.length) list.append(h('div',{class:'empty'},S.history.length?'No history entries match these filters.':'No requests sent yet.'));
+      for (const e of rows) {
+        const check = h('input',{type:'checkbox',checked:historyCompareIds.some(id=>String(id)===String(e.id)),'aria-label':`Select ${e.requestName} for comparison`,onchange:ev=>{
+          const id=String(e.id); if(ev.target.checked){ if(historyCompareIds.length>=2){ev.target.checked=false;toast('Compare up to two history entries',true);return;} historyCompareIds.push(id); }
+          else historyCompareIds=historyCompareIds.filter(x=>x!==id);
+          renderRows(); renderDetails();
+        }});
+        list.append(h('div',{class:'histRow',style:'display:flex;align-items:center;gap:10px'},check,
+          h('span',{class:'method m-'+e.method},e.method||'GET'),
+          h('span',{style:'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'},e.requestName||'(unnamed)',h('small',{style:'display:block'},e.url||'')),
+          h('span',{class:'pill '+(e.status>=200&&e.status<400?'ok':'bad')},String(e.status)),
+          h('small',{},`${Number(e.durationMs||0).toFixed(0)} ms · ${new Date(e.sentAt).toLocaleString()}`),
+          h('button',{class:'btn',onclick:()=>{historyCompareIds=[String(e.id)];renderDetails();}},'Inspect')));
+      }
+    };
+    const getDetails = async id => { if(!historyDetails.has(String(id))) historyDetails.set(String(id), await api('/api/history/'+id)); return historyDetails.get(String(id)); };
+    const detailCard = (data, compare=false) => {
+      const {entry,body=''}=data; const bytes=new TextEncoder().encode(body).length; const capped=bytes>=262144;
+      const shown=formatBodyForDisplay(entry.respHeaders||{},body,true);
+      return h('section',{class:'card',style:'min-width:0;padding:12px'},
+        h('div',{style:'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px'},h('b',{},`${entry.method} ${entry.status}`),h('span',{style:'font-family:var(--mono);overflow-wrap:anywhere'},entry.url),h('span',{class:'note'},new Date(entry.sentAt).toLocaleString())),
+        h('div',{class:'note',role:'status'},capped?'Stored response reached the 256 KiB history cap; this snapshot may be truncated.':'Stored response snapshot. Request environment and full request body/headers were not recorded.'),
+        h('pre',{style:'max-height:45vh;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere',html:highlightCode(shown.text,shown.format)}));
+    };
+    const renderDetails = async () => {
+      detailArea.innerHTML=''; const ids=historyCompareIds.slice(0,2); if(!ids.length)return;
+      detailArea.append(h('h3',{},ids.length===2?'Response comparison':'Response snapshot'));
+      try { const data=await Promise.all(ids.map(getDetails)); const cards=h('div',{style:`display:grid;grid-template-columns:repeat(${ids.length},minmax(0,1fr));gap:10px`}); data.forEach(d=>cards.append(detailCard(d,ids.length===2))); detailArea.append(cards); }
+      catch(e){ detailArea.append(h('div',{class:'note',role:'alert'},'Could not load this history entry: '+e.message)); }
+    };
+    urlFilter.oninput=renderRows; statusFilter.onchange=renderRows; ageFilter.onchange=renderRows;
+    root.append(heading,controls,list,detailArea); work.append(root); renderRows(); renderDetails();
   });
 }
 async function showHistory(id) {
-  try {
-    const { entry, body } = await api('/api/history/' + id);
-    const shown = formatBodyForDisplay(entry.respHeaders || {}, body, true);
-    const work = $('work'); $('meta').hidden = true; work.innerHTML = '';
-    $('crumb').innerHTML = ''; $('crumb').append('History / ', h('b', {}, entry.requestName));
-    const ok = entry.status >= 200 && entry.status < 400;
-    work.append(h('div', { class: 'card' },
-      h('div', { id: 'respMeta' },
-        h('span', { class: 'method m-' + entry.method }, entry.method),
-        h('span', { style: 'font-family:var(--mono)' }, entry.url),
-        h('span', { class: 'pill ' + (ok ? 'ok' : 'bad') }, h('span', { class: 'dot' }), entry.status),
-        h('span', {}, entry.durationMs.toFixed(0) + 'ms'),
-        h('span', { class: 'formatBadge' }, shown.format.toUpperCase()),
-        h('span', { style: 'color:var(--dim)' }, new Date(entry.sentAt).toLocaleString())),
-      h('pre', { id: 'respBody', html: highlightCode(shown.text, shown.format) })));
-    if (entry.requestId) work.append(h('button', { class: 'btn', onclick: () => { S.view = 'collections'; document.querySelector('[data-view=collections]').click(); openRequest(entry.requestId); } }, 'Open request'));
-  } catch (e) { toast(e.message, true); }
+  historyCompareIds=[String(id)]; if(S.view!=='history'){S.view='history';document.querySelector('[data-view=history]')?.click();} else renderHistoryView();
 }
 
 /* ---------- environments view ---------- */
 function renderEnvView(name) {
-  S.envEdit = name;
+  S.envEdit = name || S.envEdit;
   renderSide();
   $('crumb').innerHTML = ''; $('crumb').append('Workspace / ', h('b', {}, 'Environments'));
   const work = $('work'); $('meta').hidden = true; work.innerHTML = '';
-  const env = S.state.environments.find(e => e.name === name);
+  const env = S.state.environments.find(e => e.name === S.envEdit);
   if (!env) { work.append(h('div', { class: 'empty' }, 'Select an environment, or create one with +.')); return; }
   const card = h('div', { class: 'card', style: 'padding:16px' });
   card.append(h('h2', { style: 'margin:0 0 4px;font-family:var(--mono)' }, env.name));
@@ -4832,8 +6130,10 @@ function showColCtx(e, c) {
     '-',
     { icon: '🗑', label: 'Delete collection', danger: true, action: async () => {
       if (!await modal.confirm(`Delete "${c.name}" and all its requests?`, { danger: true, ok: 'Delete' })) return;
+      if (S.reqDirty && findReqMeta(S.req?.id)?.col.id === c.id && !(await saveRequest())) return;
+      if (S.requestTabOrder.some(k => { const t=S.requestTabCache.get(k); return t?.dirty && String(findReqMeta(t.id)?.col.id)===String(c.id); })) return toast('Save or close every dirty request tab in this collection before deleting it.', true);
       try {
-        await api('/api/collections/' + c.id, { method: 'DELETE' });
+        await api('/api/collections/' + c.id, { method: 'DELETE', body:{ contentHash:c.contentHash, workspaceHash:c.workspaceHash } });
         if (S.reqId && findReqMeta(S.reqId)?.col.id === c.id) { S.reqId = null; S.req = null; $('work').innerHTML = '<div class="empty">Select a request, or create one.</div>'; $('meta').hidden = true; }
         await refresh();
       } catch (err) { toast(err.message, true); }
@@ -4859,10 +6159,79 @@ function showHistCtx(e, entry) {
 ctxMenu.init();
 modal.init();
 applyUIMode();
+function applyLayoutPreferences() {
+  document.body.classList.toggle('rail-collapsed', S.railCollapsed);
+  document.documentElement.style.setProperty('--side-width', `${S.treeWidth}px`);
+  $('railToggle').setAttribute('aria-expanded', String(!S.railCollapsed));
+  $('railToggle').setAttribute('aria-label', S.railCollapsed ? 'Expand navigation' : 'Collapse navigation');
+  $('railToggle').title = S.railCollapsed ? 'Expand navigation' : 'Collapse navigation';
+  $('railToggle').textContent = S.railCollapsed ? '›' : '‹';
+  $('treeResize').setAttribute('aria-valuenow', String(S.treeWidth));
+}
+applyLayoutPreferences();
+$('railToggle').onclick = () => {
+  S.railCollapsed = !S.railCollapsed;
+  localStorage.navCollapsed = String(S.railCollapsed);
+  applyLayoutPreferences();
+};
+$('metaToggle').onclick = () => {
+  const open = !document.body.classList.contains('meta-open');
+  document.body.classList.toggle('meta-open', open);
+  $('metaToggle').setAttribute('aria-expanded', String(open));
+  $('metaToggle').textContent = open ? 'Hide details' : 'Details';
+};
+const setTreeOpen = open => {
+  document.body.classList.toggle('tree-open', open);
+  $('treeToggle').setAttribute('aria-expanded', String(open));
+  const name = S.view === 'tests' ? 'test suite tree' : 'navigation tree';
+  $('treeToggle').setAttribute('aria-label', `${open ? 'Close' : 'Open'} ${name}`);
+  $('treeToggle').textContent = open ? 'Close' : (S.view === 'tests' ? 'Suite' : 'Collections');
+  if (!open) $('treeToggle').focus();
+};
+$('treeToggle').onclick = () => setTreeOpen(!document.body.classList.contains('tree-open'));
+$('treeClose').onclick = () => setTreeOpen(false);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('tree-open')) { e.preventDefault(); setTreeOpen(false); } });
+document.addEventListener('click', e => { if (e.target === document.body && document.body.classList.contains('tree-open')) setTreeOpen(false); });
+$('collectionSearch').oninput = e => { S.collectionSearch = e.target.value; renderSide(); $('collectionSearch').focus(); $('collectionSearch').setSelectionRange(S.collectionSearch.length, S.collectionSearch.length); };
+$('clearCollectionSearch').onclick = () => { S.collectionSearch = ''; $('collectionSearch').value = ''; renderSide(); $('collectionSearch').focus(); };
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f' && S.view === 'collections') { e.preventDefault(); $('collectionSearch').focus(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Tab' && S.view === 'collections' && S.requestTabOrder.length > 1) {
+    e.preventDefault(); const i = S.requestTabOrder.indexOf(S.activeRequestTabKey); const n = (i + (e.shiftKey ? -1 : 1) + S.requestTabOrder.length) % S.requestTabOrder.length; switchRequestTab(S.requestTabOrder[n]);
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w' && S.view === 'collections' && S.activeRequestTabKey) { e.preventDefault(); closeRequestTab(S.activeRequestTabKey); }
+});
+const treeResize = $('treeResize');
+const setTreeWidth = width => {
+  S.treeWidth = Math.min(360, Math.max(160, Math.round(width)));
+  document.documentElement.style.setProperty('--side-width', `${S.treeWidth}px`);
+  treeResize.setAttribute('aria-valuenow', String(S.treeWidth));
+};
+treeResize.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault(); setTreeWidth(S.treeWidth + (e.key === 'ArrowRight' ? 16 : -16));
+    localStorage.treeWidth = String(S.treeWidth);
+  } else if (e.key === 'Home') { e.preventDefault(); setTreeWidth(160); localStorage.treeWidth = '160'; }
+  else if (e.key === 'End') { e.preventDefault(); setTreeWidth(360); localStorage.treeWidth = '360'; }
+});
+treeResize.addEventListener('pointerdown', e => {
+  e.preventDefault(); treeResize.setPointerCapture(e.pointerId); document.body.classList.add('resizingTree');
+  const move = ev => setTreeWidth(ev.clientX - $('rail').getBoundingClientRect().width);
+  const end = () => {
+    localStorage.treeWidth = String(S.treeWidth); document.body.classList.remove('resizingTree');
+    treeResize.removeEventListener('pointermove', move); treeResize.removeEventListener('pointerup', end); treeResize.removeEventListener('pointercancel', end);
+  };
+  treeResize.addEventListener('pointermove', move); treeResize.addEventListener('pointerup', end); treeResize.addEventListener('pointercancel', end);
+});
 refresh().then(() => {
+  if (usesWorkspaceFiles()) workspaceRefreshTimer = setTimeout(pollWorkspaceRefreshStatus, 100);
   if (S.state.collections[0]) {
     S.openCols.add(S.state.collections[0].id);
     renderSide();
+  }
+  return restoreRequestTabs();
+}).then(restored => {
+  if (!restored && S.state.collections[0]) {
     const first = S.state.collections[0].requests[0];
     if (first) openRequest(first.id);
   }

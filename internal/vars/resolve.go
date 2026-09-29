@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/muhaymien96/relay/internal/dsl"
 )
@@ -18,6 +20,10 @@ type Resolved struct {
 	Method  string
 	URL     string
 	Headers http.Header
+	// HeaderEntries carries explicit ordered rows, including duplicate keys.
+	// Headers remains populated for existing callers and inherited headers.
+	HeaderEntries []dsl.Entry
+	OrderedQuery  bool
 	// HeaderOrigin records where each header came from ("request",
 	// "inherited", "auth") for display and export decisions.
 	HeaderOrigin map[string]string
@@ -38,7 +44,64 @@ func Resolve(r *dsl.Request, inherited map[string]string, scope *Scope) (*Resolv
 	if err != nil {
 		return nil, fmt.Errorf("url: %w", err)
 	}
-	if len(r.Query) > 0 {
+	if len(r.QueryEntries) > 0 {
+		res.OrderedQuery = true
+		parsed, err := url.Parse(u)
+		if err != nil {
+			return nil, fmt.Errorf("url %q: %w", u, err)
+		}
+		parts := []string{}
+		entryKeys := make(map[string]bool)
+		orderedParts := []string{}
+		for _, entry := range r.QueryEntries {
+			entryKeys[entry.Key] = true
+			if entry.Disabled {
+				continue
+			}
+			key, err := scope.Interpolate(entry.Key)
+			if err != nil {
+				return nil, fmt.Errorf("query key %s: %w", entry.Key, err)
+			}
+			value, err := scope.Interpolate(entry.Value)
+			if err != nil {
+				return nil, fmt.Errorf("query %s: %w", entry.Key, err)
+			}
+			orderedParts = append(orderedParts, url.QueryEscape(key)+"="+url.QueryEscape(value))
+			entryKeys[key] = true
+		}
+		// The editor mirrors URL parameters into ordered rows. Those rows are
+		// authoritative for their keys, so retaining the same raw URL tokens
+		// would send every value twice. Preserve unrelated raw query tokens.
+		for _, part := range strings.Split(parsed.RawQuery, "&") {
+			if part == "" {
+				continue
+			}
+			key, err := url.QueryUnescape(strings.SplitN(part, "=", 2)[0])
+			if err != nil {
+				return nil, fmt.Errorf("url query: %w", err)
+			}
+			if !entryKeys[key] {
+				parts = append(parts, part)
+			}
+		}
+		parts = append(parts, orderedParts...)
+		mapKeys := make([]string, 0, len(r.Query))
+		for key := range r.Query {
+			if !entryKeys[key] {
+				mapKeys = append(mapKeys, key)
+			}
+		}
+		sort.Strings(mapKeys)
+		for _, key := range mapKeys {
+			value, err := scope.Interpolate(r.Query[key])
+			if err != nil {
+				return nil, fmt.Errorf("query %s: %w", key, err)
+			}
+			parts = append(parts, url.QueryEscape(key)+"="+url.QueryEscape(value))
+		}
+		parsed.RawQuery = strings.Join(parts, "&")
+		u = parsed.String()
+	} else if len(r.Query) > 0 {
 		parsed, err := url.Parse(u)
 		if err != nil {
 			return nil, fmt.Errorf("url %q: %w", u, err)
@@ -70,7 +133,16 @@ func Resolve(r *dsl.Request, inherited map[string]string, scope *Scope) (*Resolv
 			return nil, err
 		}
 	}
+	entryKeys := make(map[string]bool)
+	for _, entry := range r.HeaderEntries {
+		if strings.TrimSpace(entry.Key) != "" {
+			entryKeys[http.CanonicalHeaderKey(entry.Key)] = true
+		}
+	}
 	for k, v := range r.Headers {
+		if entryKeys[http.CanonicalHeaderKey(k)] {
+			continue
+		}
 		if v == "" { // empty value disables an inherited header
 			res.Headers.Del(k)
 			delete(res.HeaderOrigin, http.CanonicalHeaderKey(k))
@@ -79,6 +151,24 @@ func Resolve(r *dsl.Request, inherited map[string]string, scope *Scope) (*Resolv
 		if err := setHeader(k, v, "request"); err != nil {
 			return nil, err
 		}
+	}
+	seen := make(map[string]bool)
+	for _, entry := range r.HeaderEntries {
+		if entry.Disabled || strings.TrimSpace(entry.Key) == "" {
+			continue
+		}
+		key := http.CanonicalHeaderKey(entry.Key)
+		if !seen[key] {
+			res.Headers.Del(entry.Key)
+			seen[key] = true
+		}
+		value, err := scope.Interpolate(entry.Value)
+		if err != nil {
+			return nil, fmt.Errorf("header %s: %w", entry.Key, err)
+		}
+		res.HeaderEntries = append(res.HeaderEntries, dsl.Entry{Key: entry.Key, Value: value})
+		res.Headers.Add(entry.Key, value)
+		res.HeaderOrigin[key] = "request"
 	}
 
 	if r.Body != nil {
@@ -224,9 +314,25 @@ func applyAuth(a *dsl.Auth, res *Resolved, scope *Scope) error {
 			if err != nil {
 				return err
 			}
-			q := u.Query()
-			q.Set(a.Key, val)
-			u.RawQuery = q.Encode()
+			if res.OrderedQuery {
+				parts := make([]string, 0)
+				for _, pair := range strings.Split(u.RawQuery, "&") {
+					if pair == "" {
+						continue
+					}
+					key := strings.SplitN(pair, "=", 2)[0]
+					decoded, decodeErr := url.QueryUnescape(key)
+					if decodeErr != nil || decoded != a.Key {
+						parts = append(parts, pair)
+					}
+				}
+				parts = append(parts, url.QueryEscape(a.Key)+"="+url.QueryEscape(val))
+				u.RawQuery = strings.Join(parts, "&")
+			} else {
+				q := u.Query()
+				q.Set(a.Key, val)
+				u.RawQuery = q.Encode()
+			}
 			res.URL = u.String()
 		} else {
 			res.Headers.Set(a.Key, val)

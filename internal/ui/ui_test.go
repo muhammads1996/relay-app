@@ -85,6 +85,7 @@ func call(t *testing.T, s *Server, method, url, body string) (*httptest.Response
 		rd = strings.NewReader(body)
 	}
 	req := httptest.NewRequest(method, url, rd)
+	prepareLocalRequest(req)
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, req)
 	var doc map[string]any
@@ -223,6 +224,7 @@ func TestImportPostmanAndExportK6(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/api/export?format=k6&collection="+itoa(colID), nil)
 	out := httptest.NewRecorder()
+	prepareLocalRequest(req)
 	s.Handler().ServeHTTP(out, req)
 	if out.Code != 200 {
 		t.Fatalf("export: %d %s", out.Code, out.Body.String())
@@ -274,7 +276,8 @@ func TestEnvironmentAndPresetEndpoints(t *testing.T) {
 func TestIndexServed(t *testing.T) {
 	s, _ := newServer(t)
 	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+	rootReq := prepareLocalRequest(httptest.NewRequest("GET", "/", nil))
+	s.Handler().ServeHTTP(rec, rootReq)
 	body := rec.Body.String()
 	if rec.Code != 200 || !strings.Contains(body, "API Workbench") {
 		t.Errorf("index: %d", rec.Code)
@@ -343,6 +346,7 @@ func TestExportPostmanEndpoint(t *testing.T) {
 	s, _ := newServer(t)
 	req := httptest.NewRequest("GET", "/api/export?format=postman&collection=1", nil)
 	out := httptest.NewRecorder()
+	prepareLocalRequest(req)
 	s.Handler().ServeHTTP(out, req)
 	if out.Code != 200 {
 		t.Fatalf("export postman: %d %s", out.Code, out.Body.String())
@@ -371,6 +375,7 @@ func TestExportCurlEndpoint(t *testing.T) {
 	s, reqID := newServer(t)
 	req := httptest.NewRequest("GET", "/api/export?format=curl&request="+itoa(reqID)+"&env=local", nil)
 	out := httptest.NewRecorder()
+	prepareLocalRequest(req)
 	s.Handler().ServeHTTP(out, req)
 	if out.Code != 200 {
 		t.Fatalf("export curl: %d %s", out.Code, out.Body.String())
@@ -400,7 +405,8 @@ func TestExportRelayPackageCanSelectRequestsAndEnvironments(t *testing.T) {
 
 	url := "/api/export?format=relay&collection=1&requests=" + itoa(reqID) + "&environments=local"
 	out := httptest.NewRecorder()
-	s.Handler().ServeHTTP(out, httptest.NewRequest("GET", url, nil))
+	exportReq := prepareLocalRequest(httptest.NewRequest("GET", url, nil))
+	s.Handler().ServeHTTP(out, exportReq)
 	if out.Code != 200 {
 		t.Fatalf("export relay: %d %s", out.Code, out.Body.String())
 	}
@@ -451,7 +457,8 @@ func TestExportRelayPackageCanSelectRequestsAndEnvironments(t *testing.T) {
 func TestExportEnvironmentTOML(t *testing.T) {
 	s, _ := newServer(t)
 	out := httptest.NewRecorder()
-	s.Handler().ServeHTTP(out, httptest.NewRequest("GET", "/api/export?format=environment&env=local", nil))
+	envReq := prepareLocalRequest(httptest.NewRequest("GET", "/api/export?format=environment&env=local", nil))
+	s.Handler().ServeHTTP(out, envReq)
 	if out.Code != 200 {
 		t.Fatalf("export environment: %d %s", out.Code, out.Body.String())
 	}
@@ -596,6 +603,7 @@ func TestExportTestManagementPackZip(t *testing.T) {
 	req := httptest.NewRequest("POST", "/api/tests/export", strings.NewReader(`{"scope":"collection","collectionId":1}`))
 	req.Header.Set("Content-Type", "application/json")
 	out := httptest.NewRecorder()
+	prepareLocalRequest(req)
 	s.Handler().ServeHTTP(out, req)
 	if out.Code != 200 {
 		t.Fatalf("export pack: %d %s", out.Code, out.Body.String())
@@ -675,6 +683,7 @@ func TestExportTestManagementPlaywrightZip(t *testing.T) {
 	req := httptest.NewRequest("POST", "/api/tests/export", strings.NewReader(`{"scope":"collection","collectionId":1,"format":"playwright","env":"local"}`))
 	req.Header.Set("Content-Type", "application/json")
 	out := httptest.NewRecorder()
+	prepareLocalRequest(req)
 	s.Handler().ServeHTTP(out, req)
 	if out.Code != 200 {
 		t.Fatalf("export playwright: %d %s", out.Code, out.Body.String())
@@ -748,6 +757,7 @@ func TestExportSourceFolderAsPlaywrightProject(t *testing.T) {
 	req := httptest.NewRequest("POST", "/api/tests/export", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	out := httptest.NewRecorder()
+	prepareLocalRequest(req)
 	s.Handler().ServeHTTP(out, req)
 	if out.Code != http.StatusOK {
 		t.Fatalf("export source folder: %d %s", out.Code, out.Body.String())

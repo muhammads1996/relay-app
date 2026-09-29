@@ -83,6 +83,32 @@ func TestMarshalRoundTrip(t *testing.T) {
 	}
 }
 
+func TestOrderedEntriesRoundTrip(t *testing.T) {
+	r := &Request{
+		Name: "ordered", Method: "GET", URL: "https://example.test/path",
+		Query: map[string]string{"legacy": "query"}, Headers: map[string]string{"X-Legacy": "header"},
+		QueryEntries:  []Entry{{Key: "tag", Value: "first"}, {Key: "tag", Value: "skip", Disabled: true}, {Key: "tag", Value: "last"}},
+		HeaderEntries: []Entry{{Key: "X-Repeat", Value: "one"}, {Key: "X-Repeat", Value: "two"}},
+	}
+	first := Marshal(r)
+	r2, err := LoadRequest(writeReq(t, string(first)))
+	if err != nil {
+		t.Fatalf("ordered request did not parse: %v\n%s", err, first)
+	}
+	if len(r2.QueryEntries) != 3 || r2.QueryEntries[0].Value != "first" || !r2.QueryEntries[1].Disabled || r2.QueryEntries[2].Value != "last" {
+		t.Fatalf("query entries did not round-trip: %#v", r2.QueryEntries)
+	}
+	if len(r2.HeaderEntries) != 2 || r2.HeaderEntries[0].Value != "one" || r2.HeaderEntries[1].Value != "two" {
+		t.Fatalf("header entries did not round-trip: %#v", r2.HeaderEntries)
+	}
+	if r2.Query["legacy"] != "query" || r2.Headers["X-Legacy"] != "header" {
+		t.Fatalf("legacy maps did not round-trip alongside entries: query=%v headers=%v", r2.Query, r2.Headers)
+	}
+	if second := Marshal(r2); !bytes.Equal(first, second) {
+		t.Errorf("ordered marshal is unstable:\nfirst:\n%s\nsecond:\n%s", first, second)
+	}
+}
+
 func TestMarshalEscaping(t *testing.T) {
 	r := &Request{
 		Name:    `has "quotes" and \backslash`,

@@ -5,14 +5,18 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/muhaymien96/relay/internal/dsl"
+	"github.com/muhaymien96/relay/internal/engine"
 )
 
 // newWorkspace builds a collection with inheritance and an env, against a
@@ -94,6 +98,136 @@ path = "$.result.status"
 equals = "REJECTED"
 `)
 	return root, srv
+}
+
+func cookieWorkspace(t *testing.T) (string, *httptest.Server) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "session", Value: "logged-in", Path: "/"})
+			w.WriteHeader(http.StatusOK)
+		case "/check":
+			cookie, err := r.Cookie("session")
+			if err == nil && cookie.Value == "logged-in" {
+				w.WriteHeader(http.StatusOK)
+			} else {
+				w.WriteHeader(http.StatusUnauthorized)
+			}
+		}
+	}))
+	t.Cleanup(srv.Close)
+	root := t.TempDir()
+	collection := filepath.Join(root, "collection")
+	if err := os.MkdirAll(collection, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	login := fmt.Sprintf("name = \"login\"\nmethod = \"GET\"\nurl = %q\n", srv.URL+"/login")
+	check := fmt.Sprintf("name = \"check\"\nmethod = \"GET\"\nurl = %q\ntags = [\"protected\"]\n\n[[assertions]]\ntype = \"status\"\nequals = 200\n", srv.URL+"/check")
+	if err := os.WriteFile(filepath.Join(collection, "01-login.req.toml"), []byte(login), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(collection, "02-check.req.toml"), []byte(check), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return collection, srv
+}
+
+func TestRunCookieSessionIsolatedPerRunAndCanBeDisabled(t *testing.T) {
+	root, _ := cookieWorkspace(t)
+	first, err := Run(context.Background(), root, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.Results) != 2 || first.Results[1].Failed() {
+		t.Fatalf("first run did not share login cookie: %+v", first.Results)
+	}
+	second, err := Run(context.Background(), root, Options{Tags: []string{"protected"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second.Results) != 1 || !second.Results[0].Failed() {
+		t.Fatalf("new run reused a prior cookie session: %+v", second.Results)
+	}
+	disabled, err := Run(context.Background(), root, Options{DisableCookies: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(disabled.Results) != 2 || !disabled.Results[1].Failed() {
+		t.Fatalf("disabled cookies were sent within the run: %+v", disabled.Results)
+	}
+}
+
+func TestRunCanUseExplicitCookieSessionAcrossRuns(t *testing.T) {
+	root, _ := cookieWorkspace(t)
+	options := Options{Engine: engine.Options{Cookies: engine.NewCookieSession()}}
+	if _, err := Run(context.Background(), root, options); err != nil {
+		t.Fatal(err)
+	}
+	second, err := Run(context.Background(), root, Options{Tags: []string{"protected"}, Engine: options.Engine})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second.Results) != 1 || second.Results[0].Failed() {
+		t.Fatalf("explicit cookie session was not reused: %+v", second.Results)
+	}
+}
+
+func TestRunWithProgressCancellationKeepsPartialResults(t *testing.T) {
+	slowStarted := make(chan struct{})
+	var nextRequests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/slow":
+			close(slowStarted)
+			<-r.Context().Done()
+		case "/next":
+			nextRequests.Add(1)
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer srv.Close()
+	root := t.TempDir()
+	for name, path := range map[string]string{"01-slow.req.toml": "/slow", "02-next.req.toml": "/next"} {
+		content := fmt.Sprintf("name = %q\nmethod = \"GET\"\nurl = %q\n", name, srv.URL+path)
+		if err := os.WriteFile(filepath.Join(root, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	events := make(chan ProgressEvent, 8)
+	type runResult struct {
+		report *Report
+		err    error
+	}
+	done := make(chan runResult, 1)
+	go func() {
+		report, err := RunWithProgress(ctx, root, Options{}, func(event ProgressEvent) { events <- event })
+		done <- runResult{report: report, err: err}
+	}()
+	<-slowStarted
+	cancel()
+	result := <-done
+	if !errors.Is(result.err, context.Canceled) {
+		t.Fatalf("run error = %v, want context canceled", result.err)
+	}
+	if result.report == nil || len(result.report.Results) != 1 || !errors.Is(result.report.Results[0].Err, context.Canceled) {
+		t.Fatalf("partial results = %+v", result.report)
+	}
+	if got := nextRequests.Load(); got != 0 {
+		t.Errorf("next request started %d times after cancellation", got)
+	}
+	var terminal *ProgressEvent
+	for len(events) > 0 {
+		event := <-events
+		if event.Terminal {
+			terminal = &event
+		}
+	}
+	if terminal == nil || !terminal.Cancelled || terminal.Completed != 1 || terminal.Total != 2 || len(terminal.Results) != 1 || terminal.Elapsed <= 0 {
+		t.Errorf("terminal progress = %+v", terminal)
+	}
 }
 
 func env(srvURL string) *dsl.Environment {

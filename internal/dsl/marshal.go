@@ -37,6 +37,8 @@ func Marshal(r *Request) []byte {
 	writeTable(&b, "query", r.Query)
 	writeTable(&b, "headers", r.Headers)
 	writeTable(&b, "vars", r.Vars)
+	writeEntries(&b, "query_entries", r.QueryEntries)
+	writeEntries(&b, "header_entries", r.HeaderEntries)
 
 	if a := r.Auth; a != nil {
 		b.WriteString("\n[auth]\n")
@@ -128,6 +130,17 @@ func Marshal(r *Request) []byte {
 	}
 
 	return []byte(b.String())
+}
+
+func writeEntries(b *strings.Builder, name string, entries []Entry) {
+	for _, entry := range entries {
+		b.WriteString("\n[[" + name + "]]\n")
+		fmt.Fprintf(b, "key = %s\n", quote(entry.Key))
+		fmt.Fprintf(b, "value = %s\n", quote(entry.Value))
+		if entry.Disabled {
+			b.WriteString("disabled = true\n")
+		}
+	}
 }
 
 func writeList(b *strings.Builder, name string, items []string) {

@@ -7,12 +7,14 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	_ "modernc.org/sqlite"
 
 	"github.com/muhaymien96/relay/internal/dsl"
+	"github.com/muhaymien96/relay/internal/secretstore"
 )
 
 const schema = `
@@ -65,6 +67,12 @@ CREATE TABLE IF NOT EXISTS history (
 	sent_at      TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS history_sent_at ON history(sent_at DESC);
+CREATE TABLE IF NOT EXISTS import_sources (
+	id      TEXT PRIMARY KEY,
+	source  BLOB NOT NULL,
+	report  BLOB NOT NULL,
+	created TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS presets (
 	id          INTEGER PRIMARY KEY,
 	name        TEXT NOT NULL UNIQUE,
@@ -77,12 +85,43 @@ CREATE TABLE IF NOT EXISTS preset_attachments (
 	collection_id INTEGER REFERENCES collections(id) ON DELETE CASCADE,
 	folder_id     INTEGER REFERENCES folders(id) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS relay_meta (
+	key TEXT PRIMARY KEY,
+	value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS request_drafts (
+	workspace_id TEXT NOT NULL,
+	request_key TEXT NOT NULL,
+	payload BLOB NOT NULL,
+	base_hash TEXT NOT NULL DEFAULT '',
+	revision INTEGER NOT NULL,
+	writer_id TEXT NOT NULL,
+	edit_revision INTEGER NOT NULL,
+	updated_at TEXT NOT NULL,
+	PRIMARY KEY (workspace_id, request_key)
+);
+CREATE INDEX IF NOT EXISTS request_drafts_updated ON request_drafts(workspace_id, updated_at DESC);
 `
+
+var (
+	// ErrRequestNotFound is returned when an update targets a deleted request.
+	ErrRequestNotFound = errors.New("request not found")
+	ErrRequestConflict = errors.New("request changed since it was loaded")
+	// ErrInvalidRequestDestination indicates a missing collection or a folder
+	// that does not belong to the requested destination collection.
+	ErrInvalidRequestDestination = errors.New("invalid request destination")
+)
 
 // Store is an open workspace database.
 type Store struct {
-	db *sql.DB
+	db          *sql.DB
+	secretStore secretstore.Store
 }
+
+// SetSecretStore configures an optional external backend for Xray credentials.
+// It is per-workspace-instance so tests and distinct workspaces can inject
+// isolated providers. A nil backend keeps legacy SQLite behavior.
+func (s *Store) SetSecretStore(backend secretstore.Store) { s.secretStore = backend }
 
 // Collection is a top-level group of requests with inheritable headers/vars.
 type Collection struct {
@@ -146,7 +185,12 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("applying schema: %w", err)
 	}
-	return &Store{db: db}, nil
+	store := &Store{db: db}
+	if _, err := store.Identity(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("initializing store identity: %w", err)
+	}
+	return store, nil
 }
 
 // Close closes the database.
@@ -298,13 +342,70 @@ func (s *Store) CreateRequest(r *Request) error {
 }
 
 func (s *Store) UpdateRequest(r *Request) error {
+	return s.updateRequest(r, "")
+}
+
+// UpdateRequestIfHash atomically updates only when the persisted definition is
+// still at the content hash observed by the caller.
+func (s *Store) UpdateRequestIfHash(r *Request, expectedHash string) error {
+	if expectedHash == "" {
+		return ErrRequestConflict
+	}
+	return s.updateRequest(r, expectedHash)
+}
+
+func (s *Store) updateRequest(r *Request, expectedHash string) error {
 	if err := normalizeSpec(r); err != nil {
 		return err
 	}
-	_, err := s.db.Exec(
-		`UPDATE requests SET folder_id = ?, name = ?, method = ?, url = ?, spec = ?, updated_at = ? WHERE id = ?`,
-		r.FolderID, r.Spec.Name, r.Spec.Method, r.Spec.URL, j(r.Spec), now(), r.ID)
-	return err
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var currentSpec string
+	if err := tx.QueryRow(`SELECT spec FROM requests WHERE id = ?`, r.ID).Scan(&currentSpec); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrRequestNotFound
+		}
+		return err
+	}
+	if expectedHash != "" && hashRequestContent([]byte(currentSpec)) != expectedHash {
+		return ErrRequestConflict
+	}
+	var exists int
+	if r.CollectionID == 0 {
+		return fmt.Errorf("%w: collectionId is required", ErrInvalidRequestDestination)
+	}
+	if err := tx.QueryRow(`SELECT 1 FROM collections WHERE id = ?`, r.CollectionID).Scan(&exists); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: collection %d does not exist", ErrInvalidRequestDestination, r.CollectionID)
+		}
+		return err
+	}
+	if r.FolderID != nil {
+		if err := tx.QueryRow(`SELECT 1 FROM folders WHERE id = ? AND collection_id = ?`, *r.FolderID, r.CollectionID).Scan(&exists); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return fmt.Errorf("%w: folder %d does not belong to collection %d", ErrInvalidRequestDestination, *r.FolderID, r.CollectionID)
+			}
+			return err
+		}
+	}
+	res, err := tx.Exec(
+		`UPDATE requests SET collection_id = ?, folder_id = ?, name = ?, method = ?, url = ?, spec = ?, updated_at = ? WHERE id = ?`,
+		r.CollectionID, r.FolderID, r.Spec.Name, r.Spec.Method, r.Spec.URL, j(r.Spec), now(), r.ID)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrRequestNotFound
+	}
+	return tx.Commit()
 }
 
 func (s *Store) DeleteRequest(id int64) error {

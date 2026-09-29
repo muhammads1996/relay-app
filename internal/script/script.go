@@ -21,6 +21,12 @@ type TestResult struct {
 	Error  string
 }
 
+// ConsoleMessage is diagnostic output from a script and does not affect its result.
+type ConsoleMessage struct {
+	Level   string
+	Message string
+}
+
 // Response is the read-only HTTP result available as pm.response inside scripts.
 type Response struct {
 	Code       int
@@ -40,8 +46,9 @@ type Scope struct {
 
 // RunResult is the aggregate output of executing one script phase.
 type RunResult struct {
-	Tests  []TestResult
-	Errors []string
+	Tests   []TestResult
+	Console []ConsoleMessage
+	Errors  []string // uncaught script/runtime errors only
 	// UpdatedVars contains variable mutations written by the script (merged
 	// layer: env > collection) for the caller to propagate.
 	UpdatedVars map[string]string
@@ -90,21 +97,38 @@ func run(src string, scope *Scope, resp *Response) *RunResult {
 	return res
 }
 
-// installConsole wires console.log/warn/error to RunResult.Errors (debug info).
+// installConsole wires console.log/warn/error to an ordered diagnostic stream.
 func installConsole(vm *goja.Runtime, res *RunResult) {
 	con := vm.NewObject()
-	log := func(call goja.FunctionCall) goja.Value {
-		parts := make([]string, len(call.Arguments))
-		for i, a := range call.Arguments {
-			parts[i] = fmt.Sprintf("%v", a)
+	log := func(level string) func(goja.FunctionCall) goja.Value {
+		return func(call goja.FunctionCall) goja.Value {
+			parts := make([]string, len(call.Arguments))
+			for i, a := range call.Arguments {
+				parts[i] = consoleValue(a)
+			}
+			res.Console = append(res.Console, ConsoleMessage{Level: level, Message: strings.Join(parts, " ")})
+			return goja.Undefined()
 		}
-		res.Errors = append(res.Errors, "console: "+strings.Join(parts, " "))
-		return goja.Undefined()
 	}
-	_ = con.Set("log", log)
-	_ = con.Set("warn", log)
-	_ = con.Set("error", log)
+	_ = con.Set("log", log("log"))
+	_ = con.Set("warn", log("warn"))
+	_ = con.Set("error", log("error"))
 	_ = vm.Set("console", con)
+}
+
+func consoleValue(value goja.Value) string {
+	if goja.IsUndefined(value) {
+		return "undefined"
+	}
+	if goja.IsNull(value) {
+		return "null"
+	}
+	if obj, ok := value.(*goja.Object); ok {
+		if raw, err := json.Marshal(obj.Export()); err == nil {
+			return string(raw)
+		}
+	}
+	return fmt.Sprint(value)
 }
 
 // installPM wires the pm.* shim into the VM.

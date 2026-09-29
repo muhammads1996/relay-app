@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -27,9 +28,11 @@ import (
 	"github.com/muhaymien96/relay/internal/playwrightpack"
 	"github.com/muhaymien96/relay/internal/porter"
 	"github.com/muhaymien96/relay/internal/runner"
+	"github.com/muhaymien96/relay/internal/secretstore"
 	"github.com/muhaymien96/relay/internal/store"
 	"github.com/muhaymien96/relay/internal/ui"
 	"github.com/muhaymien96/relay/internal/vars"
+	"github.com/muhaymien96/relay/internal/workspace"
 )
 
 var version = "0.3.0"
@@ -65,7 +68,7 @@ Usage:
   relay send <file.req.toml> [--env NAME] [-v] [--insecure] [--timeout 30s]
   relay run  <dir>           [--env NAME] [--report junit|json] [--out FILE]
                              [--data rows.csv|rows.json] [--delay 0ms] [--bail]
-                             [--config relay-run.json] [--plan ID] [--execution ID]
+                             [--config relay-run.json] [--plan ID] [--execution ID] [--no-cookies]
                              [--xray-push] [--insecure] [--timeout 30s]
   relay import postman <collection.json> [--out DIR]
   relay import curl '<command>'          [--out FILE]   (or pipe via stdin)
@@ -76,6 +79,7 @@ Usage:
   relay export k6 <dir> [--env NAME] [--out script.js]
   relay export playwright <dir> [--env NAME] [--out api.spec.ts]
   relay pack validate <relay-dir>
+  relay workspace migrate <dir> [--apply] [--db relay.db]
   relay xray import <relay-playwright-results.json> --project KEY [--plan KEY] [--summary TEXT]
   relay ui [dir] [--db relay.db] [--port 7717]
   relay version
@@ -102,6 +106,8 @@ func main() {
 		err = cmdExport(os.Args[2:])
 	case "pack":
 		err = cmdPack(os.Args[2:])
+	case "workspace":
+		err = cmdWorkspace(os.Args[2:])
 	case "xray":
 		err = cmdXray(os.Args[2:])
 	case "ui":
@@ -254,6 +260,7 @@ func cmdRun(args []string) error {
 	packExecution := fs.String("execution", "", "Relay pack execution id")
 	tagsFlag := fs.String("tags", "", "comma-separated tags; all must be present")
 	prioritiesFlag := fs.String("priorities", "", "comma-separated priorities to include")
+	disableCookies := fs.Bool("no-cookies", false, "disable cookie persistence during this run")
 	xrayPush := fs.Bool("xray-push", false, "push run as a new Xray Cloud Test Execution")
 	xrayProject := fs.String("xray-project", "", "Xray/Jira project key for execution push")
 	xrayPlan := fs.String("xray-plan", "", "optional Xray test plan key")
@@ -268,6 +275,16 @@ func cmdRun(args []string) error {
 		return fmt.Errorf("usage: relay run <dir>")
 	}
 	root := pos[0]
+	if _, statErr := os.Stat(filepath.Join(root, "workspace.toml")); statErr == nil {
+		loaded, loadErr := workspace.Open(root)
+		if loadErr != nil {
+			return loadErr
+		}
+		if len(loaded.Collections) != 1 {
+			return fmt.Errorf("workspace has %d collections; run relay run on an explicit collection directory under collections/", len(loaded.Collections))
+		}
+		root = filepath.Dir(loaded.Collections[0].Path)
+	}
 	if target, err := pack.TargetFromPath(root); err == nil {
 		return runPackTarget(runPackOptions{
 			Target:           target,
@@ -289,6 +306,7 @@ func cmdRun(args []string) error {
 			XraySummary:      *xraySummary,
 			XrayExecutionKey: *xrayExecutionKey,
 			Engine:           opts(),
+			DisableCookies:   *disableCookies,
 		})
 	}
 	cfg, err := loadRunCIConfig(*configFile)
@@ -334,14 +352,15 @@ func cmdRun(args []string) error {
 	}
 
 	rep, err := runner.Run(context.Background(), root, runner.Options{
-		Env:        env,
-		Getenv:     os.Getenv,
-		Delay:      *delay,
-		Bail:       *bail,
-		Tags:       tags,
-		Priorities: priorities,
-		Data:       data,
-		Engine:     opts(),
+		Env:            env,
+		Getenv:         os.Getenv,
+		Delay:          *delay,
+		Bail:           *bail,
+		Tags:           tags,
+		Priorities:     priorities,
+		Data:           data,
+		Engine:         opts(),
+		DisableCookies: *disableCookies,
 		OnDone: func(rr runner.RequestResult) {
 			mark := "PASS"
 			if rr.Failed() {
@@ -425,6 +444,7 @@ type runPackOptions struct {
 	XraySummary      string
 	XrayExecutionKey string
 	Engine           engine.Options
+	DisableCookies   bool
 }
 
 func runPackTarget(o runPackOptions) error {
@@ -488,14 +508,15 @@ func runPackTarget(o runPackOptions) error {
 		return err
 	}
 	rep, err := runner.Run(context.Background(), root, runner.Options{
-		Env:        env,
-		Getenv:     os.Getenv,
-		Delay:      o.Delay,
-		Bail:       o.Bail,
-		Tags:       tags,
-		Priorities: priorities,
-		Data:       data,
-		Engine:     o.Engine,
+		Env:            env,
+		Getenv:         os.Getenv,
+		Delay:          o.Delay,
+		Bail:           o.Bail,
+		Tags:           tags,
+		Priorities:     priorities,
+		Data:           data,
+		Engine:         o.Engine,
+		DisableCookies: o.DisableCookies,
 		OnDone: func(rr runner.RequestResult) {
 			mark := "PASS"
 			if rr.Failed() {
@@ -855,6 +876,54 @@ func cmdPack(args []string) error {
 	return nil
 }
 
+func cmdWorkspace(args []string) error {
+	if len(args) == 0 || args[0] != "migrate" {
+		return fmt.Errorf("usage: relay workspace migrate <dir> [--apply] [--db relay.db]")
+	}
+	fs := flag.NewFlagSet("workspace migrate", flag.ExitOnError)
+	apply := fs.Bool("apply", false, "create backup and migrate when preview has no blockers")
+	dbPathFlag := fs.String("db", "", "SQLite database path (default <dir>/relay.db")
+	pos, err := parseInterleaved(fs, args[1:])
+	if err != nil {
+		return err
+	}
+	if len(pos) != 1 {
+		return fmt.Errorf("usage: relay workspace migrate <dir> [--apply] [--db relay.db]")
+	}
+	root, err := filepath.Abs(pos[0])
+	if err != nil {
+		return err
+	}
+	dbPath := *dbPathFlag
+	if dbPath == "" {
+		dbPath = filepath.Join(root, "relay.db")
+	} else if !filepath.IsAbs(dbPath) {
+		dbPath = filepath.Join(root, dbPath)
+	}
+	db, err := store.Open(dbPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	preview, err := workspace.PreviewSQLiteMigration(db, root)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("SQLite workspace migration preview: %d collections, %d folders, %d requests, %d environments, %d test cases, %d test sets, %d executions, %d presets\n", preview.Collections, preview.Folders, preview.Requests, preview.Environments, preview.TestCases, preview.TestSets, preview.TestExecutions, preview.Presets)
+	for _, reason := range preview.Blockers {
+		fmt.Printf("BLOCKED: %s\n", reason)
+	}
+	if !*apply {
+		return nil
+	}
+	result, err := workspace.MigrateSQLite(db, root)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("workspace migrated: %s\nSQLite backup: %s\nID map: %s\n", result.Workspace, result.Backup, filepath.Join(root, ".relay", "migration-v2-id-map.json"))
+	return nil
+}
+
 func cmdXray(args []string) error {
 	if len(args) < 1 || args[0] != "import" {
 		return fmt.Errorf("usage: relay xray import <relay-playwright-results.json> --project KEY [--plan KEY] [--summary TEXT]")
@@ -919,7 +988,13 @@ func cmdUI(args []string) error {
 		return err
 	}
 	defer db.Close()
-	srv := &ui.Server{DB: db, Engine: opts()}
+	if runtime.GOOS == "windows" {
+		db.SetSecretStore(secretstore.New())
+	}
+	srv := &ui.Server{DB: db, Engine: opts(), WorkspaceRoot: root}
+	if err := srv.Prepare(); err != nil {
+		return fmt.Errorf("open workspace files: %w", err)
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return srv.ListenAndServe(ctx, *port)
@@ -932,6 +1007,13 @@ func openWorkspaceDB(dir, dbPath string) (*store.Store, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
+	}
+	if err := workspace.RecoverMigration(abs); err != nil {
+		return nil, err
+	}
+	_, markerErr := os.Stat(filepath.Join(abs, "workspace.toml"))
+	if markerErr != nil && !os.IsNotExist(markerErr) {
+		return nil, markerErr
 	}
 	if dbPath == "" {
 		dbPath = filepath.Join(abs, "relay.db")
@@ -946,7 +1028,7 @@ func openWorkspaceDB(dir, dbPath string) (*store.Store, error) {
 		return nil, err
 	}
 	if empty {
-		if matches, _ := filepath.Glob(filepath.Join(abs, "*.req.toml")); len(matches) > 0 || hasNestedRequests(abs) {
+		if os.IsNotExist(markerErr) && (lenMatches(abs) > 0 || hasNestedRequests(abs)) {
 			if _, err := db.SeedFromDir(abs); err != nil {
 				db.Close()
 				return nil, fmt.Errorf("seeding from %s: %w", abs, err)
@@ -955,6 +1037,11 @@ func openWorkspaceDB(dir, dbPath string) (*store.Store, error) {
 		}
 	}
 	return db, nil
+}
+
+func lenMatches(abs string) int {
+	matches, _ := filepath.Glob(filepath.Join(abs, "*.req.toml"))
+	return len(matches)
 }
 
 func hasNestedRequests(dir string) bool {

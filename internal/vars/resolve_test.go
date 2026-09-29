@@ -79,6 +79,88 @@ func TestResolveQueryAndAuth(t *testing.T) {
 	}
 }
 
+func TestResolveOrderedEntries(t *testing.T) {
+	req := &dsl.Request{
+		Method: "GET", URL: "https://api.example.test/search?base=one",
+		QueryEntries: []dsl.Entry{
+			{Key: "tag", Value: "{{first}}"},
+			{Key: "tag", Value: "disabled", Disabled: true},
+			{Key: "tag", Value: "last"},
+		},
+		HeaderEntries: []dsl.Entry{
+			{Key: "X-Repeat", Value: "{{first}}"},
+			{Key: "X-Repeat", Value: "last"},
+			{Key: "X-Off", Value: "ignored", Disabled: true},
+		},
+	}
+	resolved, err := Resolve(req, map[string]string{"X-Repeat": "inherited", "X-Team": "qa"}, NewScope(map[string]string{"first": "one two"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.URL != "https://api.example.test/search?base=one&tag=one+two&tag=last" {
+		t.Errorf("ordered query = %q", resolved.URL)
+	}
+	if got := resolved.Headers.Values("X-Repeat"); len(got) != 2 || got[0] != "one two" || got[1] != "last" {
+		t.Errorf("ordered header values = %#v", got)
+	}
+	if got := resolved.Headers.Get("X-Team"); got != "qa" {
+		t.Errorf("inherited header = %q", got)
+	}
+	if got := resolved.Headers.Get("X-Off"); got != "" {
+		t.Errorf("disabled header = %q", got)
+	}
+	if len(resolved.HeaderEntries) != 2 || resolved.HeaderEntries[0].Value != "one two" || resolved.HeaderEntries[1].Value != "last" {
+		t.Errorf("resolved header entries = %#v", resolved.HeaderEntries)
+	}
+}
+
+func TestResolveOrderedEntriesReplaceMirroredURLKeys(t *testing.T) {
+	req := &dsl.Request{
+		Method: "GET",
+		URL:    "https://api.example.test/search?source=raw&tag=a&tag=b",
+		QueryEntries: []dsl.Entry{
+			{Key: "tag", Value: "a"},
+			{Key: "tag", Value: "b"},
+		},
+		Query: map[string]string{"tag": "b"},
+	}
+	resolved, err := Resolve(req, nil, NewScope(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "https://api.example.test/search?source=raw&tag=a&tag=b"; resolved.URL != want {
+		t.Fatalf("ordered query duplicated URL values: got %q, want %q", resolved.URL, want)
+	}
+
+	req.QueryEntries = []dsl.Entry{{Key: "tag", Value: "b", Disabled: true}}
+	resolved, err = Resolve(req, nil, NewScope(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "https://api.example.test/search?source=raw"; resolved.URL != want {
+		t.Fatalf("disabled ordered key remained in URL: got %q, want %q", resolved.URL, want)
+	}
+}
+
+func TestResolveDisabledEntriesSuppressLegacyMapValues(t *testing.T) {
+	resolved, err := Resolve(&dsl.Request{
+		Method: "GET", URL: "https://api.example.test/search?base=one",
+		Query:         map[string]string{"tag": "legacy-query"},
+		Headers:       map[string]string{"X-Disabled": "legacy-header"},
+		QueryEntries:  []dsl.Entry{{Key: "tag", Value: "disabled", Disabled: true}},
+		HeaderEntries: []dsl.Entry{{Key: "X-Disabled", Value: "disabled", Disabled: true}},
+	}, nil, NewScope(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.URL != "https://api.example.test/search?base=one" {
+		t.Errorf("disabled query leaked map value: %q", resolved.URL)
+	}
+	if got := resolved.Headers.Get("X-Disabled"); got != "" {
+		t.Errorf("disabled header leaked map value: %q", got)
+	}
+}
+
 func TestResolveBasicAndAPIKey(t *testing.T) {
 	scope := NewScope()
 	r, err := Resolve(&dsl.Request{

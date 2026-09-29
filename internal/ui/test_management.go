@@ -189,6 +189,12 @@ func (s *Server) handleTestRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleTestsRun(w http.ResponseWriter, r *http.Request) {
+	if s.isVersioned() {
+		if err := s.refreshWorkspace(); err != nil {
+			httpError(w, 500, err)
+			return
+		}
+	}
 	var in struct {
 		Env          string   `json:"env"`
 		TestIDs      []int64  `json:"testIds"`

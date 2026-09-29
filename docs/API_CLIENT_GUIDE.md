@@ -12,12 +12,15 @@ Relay binds to localhost and prints the URL, usually `http://127.0.0.1:7717`. Th
 
 ## 1. Workspace And Storage
 
-Relay uses two storage layers:
+Relay uses two storage layers. In schema v2 workspaces (`workspace.toml` is present), request and environment definitions are canonical plain files shared by the editor and CLI. SQLite stores history, local preferences, Test Management data, a rebuildable index, and recovery drafts. Older unmarked workspaces still use SQLite for editable workbench definitions; an empty legacy database can be seeded from `.req.toml` files. The CLI runs collection files directly with `relay run`.
 
-- Plain files: request collections for CLI and git workflows.
-- SQLite: workbench state, history, settings, presets, environments, and Test Management data.
+The workbench checks schema v2 files in the background while visible and updates the collection tree when they change. The status bar shows the last check or a scan failure; **Refresh files** requests an immediate full check. A failed check keeps the last verified view available. A clean open request reloads when its file changes. If you have unsaved edits, Relay retains your draft and marks a conflict; saving stale content requires you to review the newer version first.
 
-When the workbench opens a directory that contains `.req.toml` files and the database is empty, it seeds the database from the files. The CLI still runs directly from files with `relay run`.
+### Unsaved draft recovery and privacy
+
+The editor saves a local recovery copy of an unsaved request in the workspace's `relay.db`. On reopening the request after a restart, choose **Recover draft** to bring it into the editor as unsaved work or **Discard draft** to remove that copy. If the saved request changed since editing began, Relay marks a conflict; overwriting that newer version requires an explicit choice. A successful save removes its matching recovery copy. Copies are bounded to 1 MiB per request, up to 50 per workspace and 500 per database, and expire after 30 days.
+
+Recovery copies are **plaintext in the local SQLite database**, like ordinary request files. A literal token or password typed into an unsaved request may therefore be present in `relay.db` and its backups even if the request is never saved. Keep databases and backups private, do not commit them, and prefer `RELAY_SECRET_<NAME>` references for credentials. Autosave and the close-time write are best-effort recovery measures; check the editor's draft status before closing after a storage error.
 
 ## 2. Collections And Requests
 
@@ -248,7 +251,13 @@ export RELAY_XRAY_CLIENT_ID=your-client-id
 export RELAY_XRAY_CLIENT_SECRET=your-client-secret
 ```
 
-The UI also has a credentials save action that stores credentials in the local `relay.db`. Prefer environment variables for shared or CI-like usage.
+On Windows, credentials saved through `relay-app` or `relay ui` go to Windows Credential Manager under a workspace-specific key. Older workspaces may still have a plaintext credential row in `relay.db`; Settings identifies that legacy source. Migration is explicit and requires a new, named full-database backup:
+
+```powershell
+relay-app --workspace C:\path\to\workspace --migrate-xray-credentials --xray-backup C:\path\to\xray-migration-backup.db
+```
+
+The command verifies the vault copy before removing the SQLite row and keeps the backup for recovery. The backup itself still contains the old credentials, so store it securely. On other desktop platforms, local UI credential saves continue to use SQLite; prefer environment variables for shared or CI usage.
 
 From Test Management you can validate an existing Xray test key, create an Xray test, link requirement keys, create an Xray test set, create Relay executions, and push selected test runs to Xray as a new Test Execution.
 

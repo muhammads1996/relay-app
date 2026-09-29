@@ -1,6 +1,6 @@
 # Relay implementation status — 29 September 2026
 
-This records the state of the [UX audit](UX_AUDIT_2026-09-28.md) and [implementation plan](IMPLEMENTATION_PLAN.md). It is a release gate, not a production-readiness claim.
+This records the state of the [UX audit](UX_AUDIT_2026-09-28.md) and [implementation plan](IMPLEMENTATION_PLAN.md). The [production-readiness handoff](PRODUCTION_READINESS_HANDOFF.md) tells the release owner what to provide, decide, run, and verify. This status is not a production-readiness claim.
 
 ## Implemented in the current working tree
 
@@ -11,6 +11,7 @@ This records the state of the [UX audit](UX_AUDIT_2026-09-28.md) and [implementa
 - Unsaved request recovery copies now survive process restart in bounded local SQLite storage. The editor offers explicit Recover/Discard actions, keeps stale-base conflicts guarded, and clears only a matching copy after a successful save. The [client guide](API_CLIENT_GUIDE.md#unsaved-draft-recovery-and-privacy) explains the plaintext-storage tradeoff.
 - Postman query and header rows retain order, duplicates, and disabled state on import. Disabled collection variables are omitted with a warning. A runner-backed fixture covers imported inherited auth and collection/folder/request scripts; unsupported APIs remain reported and retained in the source.
 - The workbench shows schema v2 file-scan progress and offers **Refresh files**. Its sidebar renders 300 requests at a time while searching the entire collection. Opening a request reads and hashes only that file, with a stable-ID and safe-path check; its collection and folder IDs come from the same published workspace snapshot.
+- A final visual pass tightens type, contrast, spacing, active-state hierarchy, and the connected request/response surface around Relay's indigo identity. Muted text tokens were checked at 6.61:1 and 4.76:1 against white. The latest Send progress and previous-response label were exercised in a local browser fixture. The browser screenshot API returned a zero-width image, so pixel-level and native review are still release gates.
 
 ## Verification obtained so far
 
@@ -21,7 +22,7 @@ This records the state of the [UX audit](UX_AUDIT_2026-09-28.md) and [implementa
 - A live browser check detected a same-size external file edit with the original timestamp preserved, updated the sidebar and clean open editor, and returned to the original name after a byte-for-byte restore and manual refresh. Focused tests cover scan coalescing, responsive state reads, and stale-save conflicts.
 - A reproducible local [performance baseline and optimization check](RELEASE_PERFORMANCE.md) exercised 1,000 and 10,000 request workspaces, a complete streamed 100 MiB download, and 1,000 sequential sends. Batching the request index and parallelizing request-file reads cut the 10,000-request cold `Prepare` from 61.2 to about 5.4 seconds and warm `Prepare` to 3.6–4.4 seconds. A repeated `/api/state` response fell from 8.0 seconds to 72.76 ms. Full file scans still take several seconds, while the browser can search and open request 10,000.
 - The native Windows binary can be built, but newly built executables are blocked from launching by this host's Windows Application Control. Browser checks do not substitute for native WebView2 checks.
-- The final Send-progress UI edit passed inline JavaScript syntax and CLI embedding/build checks, but a new live browser session could not start because Application Control blocked both `go run` and the freshly built CLI executable. This specific interaction still needs a live browser and native check.
+- The final Send-progress UI edit passed inline JavaScript syntax and CLI embedding/build checks. A local Node-backed browser fixture rendered the latest HTML and verified the disabled **Sending…** control, live status, previous-response label, and completed result; it did not exercise the Go API. The native binary and exact Go-backed browser UI could not start because Application Control blocked both `go run` and the freshly built CLI executable.
 
 ## Open release gates
 

@@ -1048,6 +1048,53 @@
     #envSel { flex: 0 1 150px; min-width: 100px; }
     #topbar .btn { padding: 5px 9px; }
   }
+
+  /* Workbench finish: the request and response read as one instrument. */
+  :root {
+    --bg: #f5f6fa; --line: #e3e7ef; --line2: #d2d8e5;
+    --fg: #20263b; --dim: #535d72; --faint: #697389;
+    --ink: #303184; --ink-hover: #242568; --ink-soft: #eff0fb;
+    --radius: 9px;
+  }
+  body { font: 13.5px/1.48 "Segoe UI Variable", "Inter", system-ui, -apple-system, sans-serif; }
+  #rail { background: #fbfcff; }
+  #brand .logo { border-radius: 8px; box-shadow: 0 2px 6px rgba(36,37,104,.16); }
+  .navItem { min-height: 36px; }
+  .navItem.on { background: #e9ebfa; box-shadow: inset 3px 0 0 var(--ink); }
+  #sideHead { padding-top: 16px; padding-bottom: 7px; }
+  #sideHead h2 { font-size: 13px; letter-spacing: 0; color: var(--fg); font-weight: 700; }
+  #collectionSearchWrap { padding-bottom: 10px; }
+  #collectionSearch { background: #fafbfe; }
+  .colRow, .folderRow, .reqRow { min-height: 31px; }
+  .reqRow.on { outline: 0; background: #e9ebfa; box-shadow: inset 3px 0 0 var(--ink); color: var(--ink); font-weight: 650; }
+  .method { font-size: 10.5px; letter-spacing: 0; }
+  #topbar { background: #fff; }
+  #crumb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .btn, .iconBtn, input, select, textarea { font-family: "Segoe UI Variable", "Inter", system-ui, -apple-system, sans-serif; }
+  .btn { box-shadow: 0 1px 1px rgba(32,38,59,.04); }
+  .btn:hover { box-shadow: 0 2px 8px rgba(32,38,59,.08); }
+  .btn.dark { min-width: 78px; box-shadow: 0 2px 6px rgba(48,49,132,.18); }
+  .btn.dark:hover { box-shadow: 0 4px 10px rgba(48,49,132,.22); }
+  .requestTabs { min-height: 40px; padding: 3px 10px 0; background: transparent; }
+  .requestTab { border-radius: 8px 8px 0 0; padding: 7px 11px; }
+  .requestTab[aria-selected=true] { background: #fff; border-color: var(--line); border-bottom-color: #fff; box-shadow: inset 0 2px 0 var(--ink); font-weight: 650; }
+  .requestTabClose { min-width: 20px; min-height: 20px; }
+  .requestWorkspace > .requestEditor { border-radius: var(--radius) var(--radius) 0 0; border-bottom: 0; }
+  .requestWorkspace > #respCard { border-radius: 0 0 var(--radius) var(--radius); border-top: 0; }
+  .requestWorkspace > .paneSplitter { background: #fff; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+  #reqName { font-size: 16px; letter-spacing: -.015em; }
+  #urlRow { padding-top: 14px; padding-bottom: 14px; }
+  #url, #method { font-size: 13.5px; }
+  .tabs button { font-size: 12.5px; }
+  .tabs button.on { background: transparent; }
+  #respMeta { background: #fbfcff; font-family: "Segoe UI Variable", "Inter", system-ui, sans-serif; }
+  #respMeta .lbl { font-size: 12px; letter-spacing: 0; color: var(--fg); }
+  #respBody { line-height: 1.62; }
+  #statusbar { background: #fbfcff; }
+  @media (min-width: 761px) { #work { padding: 12px; gap: 10px; } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  }
 </style>
 </head>
 <body>
@@ -1064,7 +1111,7 @@
     <button class="navItem" data-view="settings" aria-label="Settings" title="Settings"><span class="navIcon" aria-hidden="true">⚙</span><span class="navLabel">Settings</span></button>
   </nav>
   <aside id="side" aria-label="Workspace navigation">
-    <div id="sideHead"><h2 id="sideTitle">COLLECTIONS</h2><button id="treeClose" class="iconBtn" aria-label="Close navigation tree" title="Close navigation tree">×</button><button id="sideAdd" title="Add item" aria-label="Add item">+</button></div>
+    <div id="sideHead"><h2 id="sideTitle">Collections</h2><button id="treeClose" class="iconBtn" aria-label="Close navigation tree" title="Close navigation tree">×</button><button id="sideAdd" title="Add item" aria-label="Add item">+</button></div>
     <div id="collectionSearchWrap" hidden><input id="collectionSearch" type="search" placeholder="Search requests…" aria-label="Search collections, folders and requests"><kbd>Ctrl+Shift+F</kbd><button id="clearCollectionSearch" aria-label="Clear search">×</button></div>
     <div id="sideList"></div>
   </aside>
@@ -1865,7 +1912,7 @@ function renderSide() {
   const list = $('sideList'); list.innerHTML = '';
   if (S.view === 'collections') { list.setAttribute('role', 'tree'); list.setAttribute('aria-label', 'Collections and requests'); }
   else { list.removeAttribute('role'); list.removeAttribute('aria-label'); }
-  const titles = { collections: 'COLLECTIONS', history: 'HISTORY', environments: 'ENVIRONMENTS', presets: 'HEADER PRESETS', settings: 'SETTINGS', tests: 'TEST MANAGEMENT' };
+  const titles = { collections: 'Collections', history: 'History', environments: 'Environments', presets: 'Header presets', settings: 'Settings', tests: 'Tests' };
   $('sideTitle').textContent = titles[S.view];
   const searchWrap = $('collectionSearchWrap'); searchWrap.hidden = S.view !== 'collections';
   $('collectionSearch').value = S.collectionSearch;
@@ -2725,7 +2772,7 @@ function filteredManagedTests() {
   });
 }
 function renderTestsSide(list) {
-  $('sideTitle').textContent = 'SUITE';
+  $('sideTitle').textContent = 'Test suite';
   list.append(h('div', { class: 'tmSuiteTools' },
     h('button', { class: 'btn dark', onclick: () => createManagedTest() }, '+ New test'),
     h('button', { class: 'btn', onclick: () => createTestFolder() }, '+ Folder'),
@@ -4870,7 +4917,7 @@ function renderResponse(card) {
   card.innerHTML = '';
   const r = S.last;
   card.classList.toggle('hasResp', !!r);
-  const metaBar = h('div', { id: 'respMeta' }, h('span', { class: 'lbl' }, 'RESPONSE'));
+  const metaBar = h('div', { id: 'respMeta' }, h('span', { class: 'lbl' }, 'Response'));
   const key = S.req ? responseKey(S.req.id, S.envName) : '';
   const failure = key ? S.sendFailures.get(key) : null;
   if (S.sending && S.sendingKey === key) metaBar.append(h('span', { class: 'pill', role: 'status' }, r ? 'New request in progress · previous response below' : 'Request in progress'));

@@ -16,6 +16,7 @@ relay.db-shm
 /.playwright-cli/
 /build/ui-audit/
 /build/windows-msi/
+/build/*.exe
 /test-results/
 /playwright-report/
 /node_modules/

@@ -1,6 +1,6 @@
 # Relay Windows Installer Setup Checklist
 
-> This checklist describes installer configuration, not product release readiness. The [current implementation status](IMPLEMENTATION_STATUS_2026-09-29.md) has open native, migration, recovery, and performance gates. Do not create a production tag from this checklist alone.
+> This checklist describes installer configuration, not product release readiness. Complete the [production-readiness handoff](PRODUCTION_READINESS_HANDOFF.md) and review the [current implementation status](IMPLEMENTATION_STATUS_2026-09-29.md) before creating a release tag.
 
 ## ✅ Configuration Status
 

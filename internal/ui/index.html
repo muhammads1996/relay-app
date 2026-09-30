@@ -271,7 +271,9 @@
               white-space: pre-wrap; word-break: break-word; overflow: auto; }
   #respBody.nowrap { white-space: pre; overflow-wrap: normal; word-break: normal; }
   .hdrWrap { overflow: auto; }
-  #respCard { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  #respCard { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; }
+  #respCard > #respMeta, #respCard > .tabs, #respCard > .upstreamError { flex-shrink: 0; }
+  #responsePanel { flex: 1 1 auto; min-height: 80px; overflow: auto; }
   #respCard.hasResp { min-height: 0; }
   #respCard.hasResp #respBody,
   #respCard.hasResp .hdrWrap,
@@ -1054,7 +1056,7 @@
     --bg: #f5f6fa; --line: #e3e7ef; --line2: #d2d8e5;
     --fg: #20263b; --dim: #535d72; --faint: #697389;
     --ink: #303184; --ink-hover: #242568; --ink-soft: #eff0fb;
-    --radius: 9px;
+    --radius: 8px;
   }
   body { font: 13.5px/1.48 "Segoe UI Variable", "Inter", system-ui, -apple-system, sans-serif; }
   #rail { background: #fbfcff; }
@@ -1082,8 +1084,16 @@
   .requestWorkspace > .requestEditor { border-radius: var(--radius) var(--radius) 0 0; border-bottom: 0; }
   .requestWorkspace > #respCard { border-radius: 0 0 var(--radius) var(--radius); border-top: 0; }
   .requestWorkspace > .paneSplitter { background: #fff; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
-  #reqName { font-size: 16px; letter-spacing: -.015em; }
-  #urlRow { padding-top: 14px; padding-bottom: 14px; }
+  #reqName { font-size: 16px; letter-spacing: 0; }
+  #urlRow { padding-top: 14px; padding-bottom: 14px; flex-wrap: nowrap; }
+  #urlRow .urlField { flex: 1 1 0; min-width: 0; }
+  .credentialField { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+  .credentialField > input { flex: 1; min-width: 0; }
+  .credentialField label { display: flex; align-items: center; gap: 4px; width: auto; white-space: nowrap; }
+  .credentialField input[type=checkbox] { width: auto; }
+  details.tmPanel > summary { cursor: pointer; list-style: none; }
+  details.tmPanel > summary::before { content: "+"; width: 12px; font-size: 15px; }
+  details.tmPanel[open] > summary::before { content: "-"; }
   #url, #method { font-size: 13.5px; }
   .tabs button { font-size: 12.5px; }
   .tabs button.on { background: transparent; }
@@ -1838,6 +1848,12 @@ function varField(tag, attrs = {}, ...kids) {
   wrap.append(edit, mirror);
   decorateVarInput(edit, mirror, wrap);
   return wrap;
+}
+
+function credentialField(label, value, placeholder, onchange) {
+  const input = h('input', { type: 'password', value, placeholder, 'aria-label': label, autocomplete: 'off', spellcheck: 'false', onchange });
+  const reveal = h('input', { type: 'checkbox', 'aria-label': `Show ${label.toLowerCase()}`, onchange: event => { input.type = event.target.checked ? 'text' : 'password'; } });
+  return h('div', { class: 'credentialField' }, input, h('label', {}, reveal, 'Show'));
 }
 
 async function moveRequestTo(reqId, collectionId, folderId = null) {
@@ -3013,6 +3029,23 @@ function renderTestEditor(sourceTest) {
   shell.append(main, renderTestRunRail(test));
   work.append(shell);
 }
+const testPanelExpansion = new Map();
+function collapsibleTestPanel(test, key, panel) {
+  const stateKey = `${test.id}:${key}`;
+  const header = panel.firstElementChild;
+  const summary = h('summary', { class: header.className }, ...header.childNodes);
+  const details = h('details', { class: panel.className, ontoggle: event => {
+    if (event.currentTarget.isConnected) testPanelExpansion.set(stateKey, event.currentTarget.open);
+  } }, summary, ...Array.from(panel.children).slice(1));
+  details.open = testPanelExpansion.get(stateKey) === true;
+  return details;
+}
+
+function xrayConfigured() {
+  const settings = S.tm?.xray;
+  return !!(settings?.projectKey || settings?.credentials?.hasClientId || settings?.credentials?.hasClientSecret);
+}
+
 function renderHandoffTestEditor(test, meta, save) {
   const work = $('work'); work.innerHTML = '';
   const latest = lastRunForTest(test.id);
@@ -3021,9 +3054,11 @@ function renderHandoffTestEditor(test, meta, save) {
     h('span', { class: 'tmUrl' }, meta?.meta?.url || 'No linked request'),
     h('span', { class: 'tmBadge' }, latest ? `Last run ${latest.status}` : 'Not run')));
   work.append(renderAssertionPanel(test, save));
-  work.append(renderIdentityPanel(test, meta, save));
-  work.append(renderRequestOverridePanel(test, save));
-  work.append(renderTracePanel(test, meta, save));
+  work.append(collapsibleTestPanel(test, 'identity', renderIdentityPanel(test, meta, save)));
+  work.append(collapsibleTestPanel(test, 'request', renderRequestOverridePanel(test, save)));
+  if (xrayConfigured() || test.xrayKey || test.testPlanKey || test.requirements?.length) {
+    work.append(collapsibleTestPanel(test, 'trace', renderTracePanel(test, meta, save)));
+  }
   work.append(renderLastRunPanel(test, latest));
   renderTestMetaRail(test);
 }
@@ -3044,10 +3079,11 @@ function renderIdentityPanel(test, meta, save) {
   return h('section', { class: 'tmPanel' },
     h('div', { class: 'tmSecHd' }, 'Identity', h('span', { class: 'grow' }),
       h('button', { class: 'tmToggle' + (test.enabled ? ' on' : ''), title: test.enabled ? 'Enabled' : 'Disabled',
-        onclick: () => { test.enabled = !test.enabled; save(); renderTestEditor(test); } })),
+        'aria-label': 'Toggle test enabled', 'aria-pressed': String(test.enabled),
+        onclick: event => { event.preventDefault(); test.enabled = !test.enabled; save(); renderTestEditor(test); } })),
     h('div', { class: 'tmSecBody' },
       h('div', { class: 'tmIdTop' },
-        h('input', { class: 'tmTestName', type: 'text', value: test.name, oninput: e => { test.name = e.target.value; save(); } }),
+        h('input', { class: 'tmTestName', type: 'text', 'aria-label': 'Test name', value: test.name, oninput: e => { test.name = e.target.value; save(); } }),
         h('span', { class: 'method m-' + (meta?.meta?.method || 'GET') }, meta?.meta?.method || 'GET'),
         h('span', { class: 'prio ' + (test.priority || 'med') }, (test.priority || 'med').toUpperCase())),
       h('div', { class: 'tmIdGrid' },
@@ -3058,7 +3094,7 @@ function renderIdentityPanel(test, meta, save) {
         h('div', { class: 'tmKey' }, 'Endpoint'),
         endpointSelect(test, save),
         h('div', { class: 'tmKey' }, 'Owner'),
-        h('input', { type: 'text', class: 'mono', value: test.owner || '', placeholder: 'risk-platform', oninput: e => { test.owner = e.target.value; save(); } }),
+        h('input', { type: 'text', class: 'mono', 'aria-label': 'Test owner', value: test.owner || '', placeholder: 'risk-platform', oninput: e => { test.owner = e.target.value; save(); } }),
         h('div', { class: 'tmKey' }, 'Priority'),
         h('div', { class: 'tmInline' }, prio, testFolderSelect(test, save)),
         h('div', { class: 'tmKey' }, 'Tags'),
@@ -3173,27 +3209,27 @@ function renderTestMetaRail(test) {
   const selected = scopeTests(test);
   const linked = selected.filter(t => t.xrayKey).length;
   meta.append(
-    h('h3', {}, 'Run & push'),
+    h('h3', {}, xrayConfigured() ? 'Run & push' : 'Run & export'),
     h('div', { class: 'tmMetaCard' },
       h('span', { class: 'lbl' }, 'Run scope'),
       h('div', { class: 'tmScopeChips' }, scopeBtn('selected', 'Selected'), scopeBtn('folder', 'Folder'), scopeBtn('collection', 'Collection')),
       h('div', { class: 'willRun' }, `${selected.length} test${selected.length === 1 ? '' : 's'} will run`),
       h('button', { class: 'btn dark tmFullBtn', onclick: () => runManagedScope() }, 'Run')),
-    h('div', { class: 'tmMetaCard' },
+    xrayConfigured() ? h('div', { class: 'tmMetaCard' },
       h('span', { class: 'lbl' }, 'Push to Xray'),
       h('div', { class: 'willRun' }, `${linked} linked, ${selected.length - linked} to create/skip`),
-      h('button', { class: 'btn tmFullBtn', onclick: () => pushXray(scopePayload(test)) }, 'Push execution')),
+      h('button', { class: 'btn tmFullBtn', onclick: () => pushXray(scopePayload(test)) }, 'Push execution')) : null,
     h('div', { class: 'tmMetaCard' },
       h('span', { class: 'lbl' }, 'Pipeline artifact'),
       h('button', { class: 'btn dark', onclick: () => exportTestPack('tests', { testIds: scopeTests(test).map(t => t.id), name: 'relay-' + (S.tmRunScope || 'selected') }) }, 'Relay pack zip'),
       h('button', { class: 'btn dark', onclick: () => exportPlaywrightProject('tests', { testIds: scopeTests(test).map(t => t.id), name: 'relay-' + (S.tmRunScope || 'selected'), env: S.envName || '' }) }, 'Playwright project zip'),
       h('button', { class: 'btn', onclick: () => openPipelineCommands(test) }, 'Pipeline commands'),
-      h('button', { class: 'btn', onclick: () => openTmExport(test, 'xray') }, 'Xray result preview')),
-    h('div', { class: 'tmMetaCard' },
+      xrayConfigured() ? h('button', { class: 'btn', onclick: () => openTmExport(test, 'xray') }, 'Xray result preview') : null),
+    xrayConfigured() ? h('div', { class: 'tmMetaCard' },
       h('span', { class: 'lbl' }, 'Xray connection'),
       h('div', { class: 'connLine ' + (S.tm?.xray?.credentials?.hasClientId ? 'ok' : 'idle') },
         (S.tm?.xray?.credentials?.source || 'not configured')),
-      h('button', { class: 'btn', onclick: testXrayConnection }, 'Test connection')));
+      h('button', { class: 'btn', onclick: testXrayConnection }, 'Test connection')) : null);
 }
 function scopeTests(test) {
   const scope = S.tmRunScope || 'selected';
@@ -4163,6 +4199,7 @@ function renderRequest() {
       varField('input', { class: 'urlField', id: 'url', 'aria-label': 'Request URL', value: spec.url, placeholder: 'https://{{baseUrl}}/path',
         oninput: (e) => { spec.url = e.target.value; if (!S.syncingQueryURL) { spec.queryEntries = queryEntriesFromURL(spec.url, spec.queryEntries || []); spec.query = queryMap(spec.queryEntries); } setReqDirty(true); save(); } }),
       h('button', { class: 'btn dark', id: 'sendBtn', ...(S.sending ? { disabled: '' } : {}), onclick: send }, S.sendPhase || 'Send'),
+      h('button', { class: 'btn', id: 'cancelSendBtn', hidden: S.sending ? undefined : '', 'aria-label': 'Cancel request', onclick: cancelSend }, 'Cancel'),
       h('span', { id: 'sendProgress', role: 'status', 'aria-live': 'polite', class: 'srOnly' }, S.sendPhase ? `${S.sendPhase} request` : ''),
     ),
     h('div', { style: 'padding:0 12px 10px', id: 'urlVarWrap' }),
@@ -4198,27 +4235,27 @@ function renderRequest() {
     const auth = spec.auth || { type: '' };
     const set = (k, v) => { spec.auth = { ...auth, [k]: v }; if (!spec.auth.type) spec.auth = null; setReqDirty(true); save(); renderRequest(); };
     tb.append(h('div', { class: 'formRow' }, h('label', {}, 'Type'),
-      h('select', { onchange: (e) => set('type', e.target.value) },
+      h('select', { 'aria-label': 'Authorization type', onchange: (e) => set('type', e.target.value) },
         ['', 'bearer', 'basic', 'apikey'].map(t => h('option', { value: t, selected: (auth.type || '') === t ? '' : undefined }, t || 'none')))));
     if (auth.type === 'bearer')
       tb.append(h('div', { class: 'formRow' }, h('label', {}, 'Token'),
-        varField('input', { type: 'text', value: auth.token || '', placeholder: '{{apiToken}}', onchange: (e) => set('token', e.target.value) })));
+        credentialField('Token', auth.token || '', '{{apiToken}}', (e) => set('token', e.target.value))));
     if (auth.type === 'basic') {
       tb.append(h('div', { class: 'formRow' }, h('label', {}, 'Username'),
-        varField('input', { type: 'text', value: auth.username || '', onchange: (e) => set('username', e.target.value) })));
+        varField('input', { type: 'text', 'aria-label': 'Username', value: auth.username || '', onchange: (e) => set('username', e.target.value) })));
       tb.append(h('div', { class: 'formRow' }, h('label', {}, 'Password'),
-        varField('input', { type: 'text', value: auth.password || '', placeholder: '{{password}}', onchange: (e) => set('password', e.target.value) })));
+        credentialField('Password', auth.password || '', '{{password}}', (e) => set('password', e.target.value))));
     }
     if (auth.type === 'apikey') {
       tb.append(h('div', { class: 'formRow' }, h('label', {}, 'Header/param'),
-        varField('input', { type: 'text', value: auth.key || '', placeholder: 'X-Api-Key', onchange: (e) => set('key', e.target.value) })));
+        varField('input', { type: 'text', 'aria-label': 'API key name', value: auth.key || '', placeholder: 'X-Api-Key', onchange: (e) => set('key', e.target.value) })));
       tb.append(h('div', { class: 'formRow' }, h('label', {}, 'Value'),
-        varField('input', { type: 'text', value: auth.value || '', placeholder: '{{apiKey}}', onchange: (e) => set('value', e.target.value) })));
+        credentialField('API key value', auth.value || '', '{{apiKey}}', (e) => set('value', e.target.value))));
       tb.append(h('div', { class: 'formRow' }, h('label', {}, 'In'),
-        h('select', { onchange: (e) => set('in', e.target.value) },
+        h('select', { 'aria-label': 'API key location', onchange: (e) => set('in', e.target.value) },
           ['header', 'query'].map(t => h('option', { value: t, selected: (auth.in || 'header') === t ? '' : undefined }, t)))));
     }
-    tb.append(h('div', { class: 'note' }, 'Reference secrets by variable ({{apiToken}}) — values come from the selected environment and RELAY_SECRET_* and are masked everywhere.'));
+    tb.append(h('div', { class: 'note' }, 'Use {{secretName}} references for credentials. Literal values are saved with the request as plaintext; masking only hides them on screen.'));
   } else if (S.tab === 'body') {
     const body = spec.body || { type: 'none', content: '' };
     const toolbar = h('div', { class: 'bodyToolbar' }, h('label', {}, 'Body type'),
@@ -4385,10 +4422,10 @@ function highlightJSON(code) {
 }
 
 function highlightXML(code) {
-  const tokens = String(code || '').match(/<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<[^>]*>|[^<]+/g) || [];
+  const tokens = String(code || '').match(/\x3c!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<[^>]*>|[^<]+/g) || [];
   return tokens.map(token => {
     const safe = escHtml(token);
-    if (token.startsWith('<!--')) return `<span class="xml-comment">${safe}</span>`;
+    if (token.startsWith('\x3c!--')) return `<span class="xml-comment">${safe}</span>`;
     if (token.startsWith('<')) return `<span class="xml-tag">${safe.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (_, raw) => varTokenHTML(raw.trim()))}</span>`;
     return safe.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (_, raw) => varTokenHTML(raw.trim()));
   }).join('');
@@ -4858,7 +4895,7 @@ function renderScriptsTab(reqSpec, scripts, save) {
 
 function renderSendFailure(failure) {
   return h('div', { class: 'upstreamError', role: 'alert', style: 'margin:10px 14px;border-color:var(--red)' },
-    h('b', {}, `Send failed · ${failure.stage}`),
+    h('b', {}, failure.stage === 'Cancelled' ? 'Request cancelled' : `Send failed · ${failure.stage}`),
     h('p', {}, failure.message),
     h('div', { class: 'errorMeta' }, h('span', {}, new Date(failure.at).toLocaleString()),
       h('span', {}, 'Last successful response is retained below when available.')));
@@ -5193,10 +5230,19 @@ async function deleteRequest() {
   } catch (e) { toast(e.message, true); }
 }
 
+let sendController = null;
+let sendStartedAt = 0;
+
+function cancelSend() {
+  sendController?.abort();
+}
+
 function setSendPhase(phase) {
   S.sendPhase = phase;
   const button = $('sendBtn');
   if (button) button.textContent = phase || 'Send';
+  const cancel = $('cancelSendBtn');
+  if (cancel) cancel.hidden = !S.sending;
   const progress = $('sendProgress');
   if (progress) progress.textContent = phase ? `${phase} request` : '';
 }
@@ -5207,14 +5253,22 @@ async function send() {
   const tabKey = requestTabKey(requestId, env);
   S.sending = true;
   S.sendingKey = responseKey(requestId, env);
+  const controller = new AbortController();
+  sendController = controller;
+  sendStartedAt = performance.now();
+  const progressTimer = setInterval(() => {
+    const cancel = $('cancelSendBtn');
+    if (cancel) cancel.textContent = `Cancel (${((performance.now() - sendStartedAt) / 1000).toFixed(1)}s)`;
+  }, 100);
   const button = $('sendBtn');
   if (button) button.disabled = true;
   setSendPhase('Saving…');
   renderResponse();
   try {
     if (!(await saveRequest())) return;
+    controller.signal.throwIfAborted();
     setSendPhase('Sending…');
-    const result = await api('/api/send', { method: 'POST', body: { requestId, env } });
+    const result = await api('/api/send', { method: 'POST', body: { requestId, env }, signal: controller.signal });
     const key = responseKey(requestId, env);
     S.lastByRequest.set(key, result);
     S.lastSuccessAt.set(key, new Date().toLocaleString());
@@ -5227,12 +5281,14 @@ async function send() {
     }
   } catch (e) {
     const key = responseKey(requestId, env);
-    const stage = e.status === 422 ? 'Request resolution / validation' : e.status === 502 ? 'Network / DNS / TLS / transport' : e.status === 504 ? 'Timeout' : e.status ? `Send (HTTP ${e.status})` : 'Network / transport';
-    S.sendFailures.set(key, { message:e.message || 'Send failed', stage, at:new Date().toISOString() });
+    const cancelled = controller.signal.aborted;
+    const stage = cancelled ? 'Cancelled' : e.status === 422 ? 'Request resolution / validation' : e.status === 502 ? 'Network / DNS / TLS / transport' : e.status === 504 ? 'Timeout' : e.status ? `Send (HTTP ${e.status})` : 'Network / transport';
+    const message = cancelled ? 'Stopped waiting for this request. The server may already have processed it.' : e.message || 'Send failed';
+    S.sendFailures.set(key, { message, stage, at:new Date().toISOString() });
     if (S.req?.id === requestId && S.envName === env) renderResponse();
-    toast(e.message, true);
+    toast(cancelled ? 'Request cancelled' : message, !cancelled);
   }
-  finally { S.sending = false; S.sendingKey = ''; setSendPhase(''); if (button?.isConnected) button.disabled = false; const activeSend = $('sendBtn'); if (activeSend) activeSend.disabled = false; if (S.req?.id === requestId && S.envName === env) renderResponse(); }
+  finally { clearInterval(progressTimer); sendController = null; S.sending = false; S.sendingKey = ''; setSendPhase(''); if (button?.isConnected) button.disabled = false; const activeSend = $('sendBtn'); if (activeSend) activeSend.disabled = false; if (S.req?.id === requestId && S.envName === env) renderResponse(); }
 }
 
 async function loadStats(id) {
@@ -5342,12 +5398,15 @@ function renderCookieSettingsCard() {
   return card;
 }
 
+let settingsRenderVersion = 0;
 async function renderSettingsView() {
+  const renderVersion = ++settingsRenderVersion;
   let set, xs;
   try {
     [set, xs] = await Promise.all([api('/api/settings'), api('/api/xray/settings')]);
   } catch (e) { toast(e.message, true); return; }
 
+  if (S.view !== 'settings' || renderVersion !== settingsRenderVersion) return;
   const work = $('work'); $('meta').hidden = true; work.innerHTML = '';
   $('crumb').innerHTML = ''; $('crumb').append('Workspace / ', h('b', {}, 'Settings'));
 
@@ -5379,10 +5438,11 @@ async function renderSettingsView() {
   modeCard.append(h('h2', { style: 'margin:0 0 4px;font-family:var(--mono)' }, 'UI Mode'));
   modeCard.append(h('div', { style: 'color:var(--dim);margin-bottom:14px' }, 'Choose the interface mode that best fits your workflow.'));
   const modeRow = h('div', { class: 'formRow' }, h('label', {}, 'Interface mode'));
-  const modeSelect = h('select', { style: 'min-width:150px', value: S.mode,
+  const modeSelect = h('select', { style: 'min-width:150px', 'aria-label': 'Interface mode',
     onchange: (e) => { setUIMode(e.target.value); } },
     h('option', { value: 'full' }, 'Full (API client + Test Management)'),
     h('option', { value: 'basic' }, 'Basic (API client only)'));
+  modeSelect.value = S.mode;
   modeRow.append(modeSelect);
   modeCard.append(modeRow);
   modeCard.append(h('div', { class: 'note', style: 'margin-top:10px' },
@@ -5701,13 +5761,16 @@ function sumCard(label, value, cls) {
 /* ---------- history view ---------- */
 let historyFilters = { url: '', status: 'all', age: 'all' };
 let historyCompareIds = [];
+let historyRenderVersion = 0;
 const historyDetails = new Map();
 async function loadHistory() {
   try { S.history = await api('/api/history?limit=100'); } catch { S.history = []; }
   if (S.view === 'history') renderSide();
 }
 function renderHistoryView() {
+  const renderVersion = ++historyRenderVersion;
   loadHistory().then(() => {
+    if (S.view !== 'history' || renderVersion !== historyRenderVersion) return;
     $('crumb').innerHTML = ''; $('crumb').append('Workspace / ', h('b', {}, 'History'));
     const work = $('work'); $('meta').hidden = true; work.innerHTML = '';
     const root = h('div',{class:'historyView'});

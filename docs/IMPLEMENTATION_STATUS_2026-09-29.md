@@ -1,5 +1,7 @@
 # Relay implementation status — 29 September 2026
 
+**Superseded for current release decisions by the [30 September review](REVIEW_2026-09-30.md).** Full Go tests/vet and fresh builds now pass on this host, and a fresh desktop window launches. This dated record retains the earlier evidence and limitations.
+
 This records the state of the [UX audit](UX_AUDIT_2026-09-28.md) and [implementation plan](IMPLEMENTATION_PLAN.md). The [production-readiness handoff](PRODUCTION_READINESS_HANDOFF.md) tells the release owner what to provide, decide, run, and verify. This status is not a production-readiness claim.
 
 ## Implemented in the current working tree

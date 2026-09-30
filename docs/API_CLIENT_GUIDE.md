@@ -38,6 +38,8 @@ Common actions:
 
 Each request editor supports method, URL, query params, headers, auth, body, variables, assertions, and scripts.
 
+While an individual request is running, **Cancel** shows elapsed time and stops waiting for the response. In the browser, cancellation also closes the upstream operation through the Go request context. Cancellation does not undo an operation the API has already processed. The previous response remains available and cancellation is recorded in the response pane. Native WebView2 cancellation still requires acceptance verification.
+
 ## 3. Environments And Variables
 
 Relay placeholders use this syntax:
@@ -105,6 +107,8 @@ Supported body types:
 - Binary file
 
 Use variables freely in body content and auth fields.
+
+Token, password, and API-key value fields are masked by default; **Show** reveals the selected field. Masking is a display control only. Literal credentials are stored with request definitions and recovery drafts as plaintext. Prefer references such as `{{apiToken}}` backed by `RELAY_SECRET_APITOKEN`.
 
 The JSON and XML editors include line numbers, syntax highlighting, variable highlighting, and format/minify actions. URL-encoded bodies can be normalized, raw bodies use content-aware highlighting when their `Content-Type` or contents identify a supported format, and binary bodies use a collection-relative file path.
 

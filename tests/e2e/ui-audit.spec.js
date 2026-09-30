@@ -9,6 +9,7 @@ const viewports = [
   { name: 'default', width: 1280, height: 820 },
   { name: 'compact', width: 1024, height: 760 },
   { name: 'narrow-desktop', width: 820, height: 720 },
+  { name: 'minimum', width: 760, height: 480 },
 ];
 
 async function audit(page, name) {
@@ -80,7 +81,7 @@ async function audit(page, name) {
       viewportLeaks,
     };
   });
-  console.log('AUDIT ' + name + ' ' + JSON.stringify(metrics));
+  console.log('AUDIT ' + name + ' ' + JSON.stringify({ width: metrics.width, height: metrics.height, badOverflow: metrics.badOverflow, viewportLeaks: metrics.viewportLeaks }));
   expect(metrics.title).toContain('Relay');
   expect(metrics.docScrollWidth, `${name} document width`).toBeLessThanOrEqual(metrics.width + 2);
   expect(metrics.badOverflow, `${name} clipped elements`).toEqual([]);
@@ -88,12 +89,30 @@ async function audit(page, name) {
   await page.screenshot({ path: `${outDir}/${name}.png`, fullPage: true });
 }
 
-test.describe.configure({ mode: 'serial' });
-
 let fixtureServer;
+let cancelledRequests = 0;
+const pageErrors = new WeakMap();
+
+test.beforeEach(async ({ page }) => {
+  const errors = [];
+  pageErrors.set(page, errors);
+  page.on('pageerror', error => errors.push(error.message));
+});
+
+test.afterEach(async ({ page }) => {
+  expect(pageErrors.get(page), 'Uncaught browser exceptions').toEqual([]);
+});
 
 test.beforeAll(async () => {
   fixtureServer = http.createServer((request, response) => {
+    if (request.url === '/slow') {
+      const timer = setTimeout(() => response.end('late response'), 15000);
+      response.on('close', () => {
+        clearTimeout(timer);
+        if (!response.writableEnded) cancelledRequests++;
+      });
+      return;
+    }
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({ ok: true, path: request.url }));
   });
@@ -135,33 +154,193 @@ test('Relay desktop UI audit', async ({ page }) => {
   if (envOptions.length > 1) {
     await page.locator('#envSel').selectOption({ index: 1 });
   }
-  const requestTabs = () => page.locator('#work > .card').first().locator('.tabs button');
+  const requestTabs = () => page.getByRole('tablist', { name: 'Request editor sections' }).getByRole('tab');
   const responseTabs = () => page.locator('#respCard .tabs button');
 
-  await page.getByText('Verify Individual').click();
+  await page.locator('#sideList').getByText('Verify Individual', { exact: true }).click();
   await requestTabs().filter({ hasText: /^Body$/ }).click();
   await audit(page, 'request-body-default');
 
   await requestTabs().filter({ hasText: /^Scripts/ }).click();
   await audit(page, 'request-scripts-default');
 
-  await page.getByText('Health').click();
-  await page.getByRole('button', { name: 'Send' }).click();
-  await page.waitForTimeout(1200);
-  if (await responseTabs().filter({ hasText: /^Body$/ }).count()) {
-    await responseTabs().filter({ hasText: /^Body$/ }).click();
-  }
+  await page.locator('#sideList').getByText('Health', { exact: true }).click();
+  await page.locator('#envSel').selectOption('');
+  await page.getByRole('textbox', { name: 'Request URL', exact: true }).fill('http://127.0.0.1:18080/health');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.locator('#respMeta')).toContainText('200 OK');
+  await responseTabs().filter({ hasText: /^Body$/ }).click();
+  await expect(page.locator('#respBody')).toContainText('"ok": true');
   await audit(page, 'response-body-default');
 
-  if (await responseTabs().filter({ hasText: /^Headers/ }).count()) {
-    await responseTabs().filter({ hasText: /^Headers/ }).click();
-  }
+  await responseTabs().filter({ hasText: /^Headers/ }).click();
   await audit(page, 'response-headers-default');
 
-  await page.getByText('Test Management').click();
-  await page.waitForTimeout(900);
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    await audit(page, `request-${viewport.name}`);
+    const controls = await page.locator('#method,#url,#sendBtn').evaluateAll(elements => elements.map(element => {
+      const rect = element.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom, width: rect.width };
+    }));
+    expect(controls).toHaveLength(3);
+    expect(Math.max(...controls.map(control => control.top)) - Math.min(...controls.map(control => control.top))).toBeLessThan(5);
+    for (const control of controls) {
+      expect(control.width).toBeGreaterThan(50);
+      expect(control.bottom).toBeLessThan(viewport.height);
+    }
+  }
+  await page.setViewportSize({ width: 1280, height: 820 });
+  await page.getByRole('button', { name: 'Test management', exact: true }).click();
+  await expect(page.locator('.tmRequestSummary')).toBeVisible();
+  await expect(page.locator('details.tmPanel[open]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Push execution', exact: true })).toHaveCount(0);
+  const identity = page.locator('summary').filter({ hasText: 'Identity' });
+  await identity.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByLabel('Test name', { exact: true })).toBeVisible();
+  await identity.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByLabel('Test name', { exact: true })).toBeHidden();
   await audit(page, 'tests-default');
 
   await page.setViewportSize({ width: 1024, height: 760 });
   await audit(page, 'tests-compact');
+  await page.setViewportSize({ width: 760, height: 480 });
+  await audit(page, 'tests-minimum');
+  const content = await page.locator('#content').boundingBox();
+  expect(content.height).toBeGreaterThan(200);
+});
+
+test('late history responses preserve the active view', async ({ page }) => {
+  await page.goto(baseURL, { waitUntil: 'networkidle' });
+  let releaseHistory;
+  const historyReady = new Promise(resolve => { releaseHistory = resolve; });
+  await page.route('**/api/history?*', async route => {
+    await historyReady;
+    await route.fulfill({ json: [] });
+  });
+  await page.getByRole('button', { name: 'History', exact: true }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(page.locator('#crumb')).toContainText('Settings');
+  releaseHistory();
+  await page.waitForLoadState('networkidle');
+  await expect(page.locator('#crumb')).toContainText('Settings');
+  await expect(page.getByRole('heading', { name: 'Request history' })).toHaveCount(0);
+});
+
+test('late settings responses preserve the active request', async ({ page }) => {
+  await page.goto(baseURL, { waitUntil: 'networkidle' });
+  let releaseSettings;
+  const settingsReady = new Promise(resolve => { releaseSettings = resolve; });
+  await page.route('**/api/xray/settings', async route => {
+    await settingsReady;
+    await route.continue();
+  });
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Collections', exact: true }).click();
+  releaseSettings();
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByRole('textbox', { name: 'Request URL', exact: true })).toBeVisible();
+  await expect(page.locator('#crumb')).not.toContainText('Settings');
+});
+
+test('credentials are masked unless explicitly revealed', async ({ page }) => {
+  await page.goto(baseURL, { waitUntil: 'networkidle' });
+  await page.locator('#sideList').getByText('Verify Individual', { exact: true }).click();
+  await page.getByRole('tab', { name: 'Authorization', exact: true }).click();
+  await expect(page.getByLabel('Authorization type', { exact: true })).toHaveValue('bearer');
+  const token = page.getByLabel('Token', { exact: true });
+  await expect(token).toHaveAttribute('type', 'password');
+  await page.getByRole('checkbox', { name: 'Show token', exact: true }).check();
+  await expect(token).toHaveAttribute('type', 'text');
+  await page.getByRole('checkbox', { name: 'Show token', exact: true }).uncheck();
+  await expect(token).toHaveAttribute('type', 'password');
+  await expect(page.locator('.varMirror')).not.toContainText('{{apiToken}}');
+});
+
+test('failed saves block sending and preserve the draft', async ({ page }) => {
+  await page.goto(baseURL, { waitUntil: 'networkidle' });
+  let sends = 0;
+  page.on('request', request => { if (new URL(request.url()).pathname === '/api/send') sends++; });
+  await page.route('**/api/requests/*', route => route.request().method() === 'PUT'
+    ? route.fulfill({ status: 500, json: { error: 'Save unavailable in regression fixture' } })
+    : route.continue());
+  const url = page.getByRole('textbox', { name: 'Request URL', exact: true });
+  await url.fill('http://127.0.0.1:18080/unsaved');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.locator('#retrySaveBtn')).toBeVisible();
+  await expect(url).toHaveValue('http://127.0.0.1:18080/unsaved');
+  expect(sends).toBe(0);
+  await page.unroute('**/api/requests/*');
+  await page.locator('#saveReqBtn').click();
+  await expect(page.locator('#retrySaveBtn')).toBeHidden();
+});
+
+test('individual send cancellation closes the upstream request', async ({ page }) => {
+  await page.goto(baseURL, { waitUntil: 'networkidle' });
+  await page.locator('#envSel').selectOption('');
+  const before = cancelledRequests;
+  await page.getByRole('textbox', { name: 'Request URL', exact: true }).fill('http://127.0.0.1:18080/slow');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.locator('#sendBtn')).toHaveText('Sending…');
+  await page.getByRole('tab', { name: 'Headers', exact: true }).first().click();
+  await expect(page.getByRole('button', { name: 'Cancel request', exact: true })).toContainText('s)');
+  await page.getByRole('button', { name: 'Cancel request', exact: true }).click();
+  await expect(page.locator('#sendBtn')).toBeEnabled();
+  await expect(page.locator('#respCard')).toContainText('Request cancelled');
+  await expect.poll(() => cancelledRequests).toBe(before + 1);
+  await page.getByRole('textbox', { name: 'Request URL', exact: true }).fill('http://127.0.0.1:18080/health');
+  await page.locator('#saveReqBtn').click();
+});
+
+test('settings booleans and TLS warning match saved values', async ({ page }) => {
+  let settings = { timeoutSeconds: 30, followRedirects: true, insecure: false };
+  await page.route('**/api/settings', route => {
+    if (route.request().method() === 'PUT') settings = route.request().postDataJSON();
+    return route.fulfill({ json: settings });
+  });
+  await page.goto(baseURL, { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Follow redirects' })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Skip TLS verification' })).not.toBeChecked();
+  await page.getByRole('checkbox', { name: 'Follow redirects' }).uncheck();
+  await expect.poll(() => settings.followRedirects).toBe(false);
+  await page.getByRole('checkbox', { name: 'Skip TLS verification' }).check();
+  await expect.poll(() => settings.insecure).toBe(true);
+  await expect(page.locator('#tlsStatus')).toBeVisible();
+  await page.getByRole('button', { name: 'Collections', exact: true }).click();
+  await expect(page.locator('#tlsStatus')).toBeVisible();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Follow redirects' })).not.toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Skip TLS verification' })).toBeChecked();
+  await page.getByRole('checkbox', { name: 'Follow redirects' }).check();
+  await page.getByRole('checkbox', { name: 'Skip TLS verification' }).uncheck();
+  await expect.poll(() => settings.insecure).toBe(false);
+  await expect.poll(() => settings.followRedirects).toBe(true);
+  await expect(page.locator('#tlsStatus')).toBeHidden();
+});
+
+test('interface mode persists and environment changes preserve the active view', async ({ page }) => {
+  await page.goto(baseURL, { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByLabel('Interface mode', { exact: true }).selectOption('basic');
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(page.getByLabel('Interface mode', { exact: true })).toHaveValue('basic');
+  await expect(page.getByRole('button', { name: 'Test management', exact: true })).toBeHidden();
+  await page.getByLabel('Interface mode', { exact: true }).selectOption('full');
+  for (const [name, title] of [['History', 'History'], ['Settings', 'Settings'], ['Header presets', 'Header Presets'], ['Environments', 'Environments'], ['Test management', 'Test Management']]) {
+    const navigation = page.getByRole('button', { name, exact: true });
+    await navigation.click();
+    if (name === 'Test management') await expect(page.locator('.tmRequestSummary')).toBeVisible();
+    else await expect(page.locator('#crumb')).toContainText(title);
+    const activeCrumb = await page.locator('#crumb').innerText();
+    await page.locator('#envSel').selectOption('local');
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('#crumb')).toHaveText(activeCrumb);
+    await expect(navigation).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('#url')).toHaveCount(0);
+    await page.locator('#envSel').selectOption('');
+  }
 });

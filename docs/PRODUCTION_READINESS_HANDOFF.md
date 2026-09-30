@@ -2,6 +2,8 @@
 
 Status: **release candidate work in progress**. Do not tag, publish an installer, or describe Relay as a complete Postman replacement yet. The current implementation and measured limits are in [implementation status](IMPLEMENTATION_STATUS_2026-09-29.md); the original findings are in the [UX audit](UX_AUDIT_2026-09-28.md).
 
+**30 September update:** the full Go suite, explicit vet, dependency verification, CLI build, and production desktop build now pass on this host. A fresh native binary opened a responsive window. The earlier blanket toolchain/launch restriction is no longer current. See the [latest review and F01-F24 disposition](REVIEW_2026-09-30.md) for additional UI fixes and remaining product/native acceptance gates. The older results below remain historical evidence, not the latest verification status.
+
 ## What you need to provide or decide
 
 1. **An unrestricted Windows test host.** It must be able to run newly built Go test executables, `vet.exe`, the fresh Wails desktop binary, and the MSI. This development host's Windows Application Control blocks some of them. Ask your IT/security administrator to allow the approved development/release toolchain; do not turn off endpoint protection merely to make a test pass. Record Windows version, WebView2 version, display scaling, CPU, and memory.

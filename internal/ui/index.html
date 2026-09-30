@@ -36,8 +36,8 @@
   /* ---- nav rail ---- */
   #rail { width: 185px; background: var(--panel); border-right: 1px solid var(--line);
           display: flex; flex-direction: column; padding: 14px 10px; gap: 4px; }
-  #brand { display: flex; align-items: center; gap: 8px; padding: 0 6px 12px; }
-  #brand .logo { width: 26px; height: 26px; border-radius: 7px; background: var(--ink);
+  #brand { display: flex; flex: none; align-items: center; gap: 8px; padding: 0 6px 12px; }
+  #brand .logo { flex: none; width: 26px; height: 26px; border-radius: 7px; background: var(--ink);
                  color: #fff; display: grid; place-items: center; font-weight: 800; }
   #brand b { font-size: 14px; } #brand small { display: block; color: var(--dim); font-size: 10px;
              text-transform: uppercase; letter-spacing: .06em; }
@@ -46,6 +46,8 @@
   #newReq:hover { border-color: var(--ink); color: var(--ink); }
   .navItem { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 8px;
              color: var(--dim); border: 0; background: none; text-align: left; width: 100%; font-weight: 500; }
+  .navIcon { flex: none; width: 20px; height: 20px; display: grid; place-items: center; font-size: 18px; line-height: 1; }
+  .navLabel { min-width: 0; }
   .navItem svg { width: 15px; height: 15px; flex: none; }
   .navItem:hover { background: var(--ink-soft); color: var(--ink); }
   .navItem.on { background: var(--ink-soft); color: var(--ink); font-weight: 700; }
@@ -617,7 +619,7 @@
   @media (max-width: 760px) {
     body.tmMode #app { flex-direction: row; overflow: hidden; }
     body.tmMode #rail { flex: 0 0 48px; width: 48px; min-height: 0; flex-direction: column; flex-wrap: nowrap; align-items: stretch; overflow: auto; padding: 10px 5px; border-right: 1px solid var(--line); border-bottom: 0; }
-    body.tmMode #brand { justify-content: center; padding: 0 0 8px; }
+    body.tmMode #brand { flex-direction: column; justify-content: center; padding: 0 0 8px; }
     body.tmMode .brandName, body.tmMode .navLabel { display: none !important; }
     body.tmMode #newReq { display: none; }
     body.tmMode .navItem { flex: 0 0 38px; width: 38px; justify-content: center; padding: 6px 3px; }
@@ -784,12 +786,12 @@
   .btn, .iconBtn, .tmTopBtn { white-space: nowrap; }
   #app { min-width: 0; overflow: hidden; }
   #rail {
-    flex: 0 0 185px; min-height: 0; overflow: auto; scrollbar-gutter: stable;
+    flex: 0 0 185px; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: auto;
   }
   #brand, .navItem, #sideHead, #topbar, #content, #meta, .card, .tmPanel {
     min-width: 0;
   }
-  #brand > div:last-child, #sideHead h2, #crumb {
+  #brand > .brandName, #sideHead h2, #crumb {
     min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   #brand b, #brand small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -985,10 +987,9 @@
 
   /* Relay workbench: the request surface owns the width; navigation stays close at hand. */
   body.rail-collapsed #rail { flex: 0 0 48px; width: 48px; padding: 12px 5px; }
-  body.rail-collapsed #brand { justify-content: center; padding: 0 0 10px; flex-wrap: wrap; }
+  body.rail-collapsed #brand { flex-direction: column; justify-content: center; padding: 0 0 10px; }
   body.rail-collapsed .brandName, body.rail-collapsed #newReq, body.rail-collapsed .navLabel { display: none; }
   body.rail-collapsed .navItem { justify-content: center; padding: 9px 4px; }
-  body.rail-collapsed .navIcon { font-size: 16px; }
   #railToggle { margin-left: auto; flex: 0 0 auto; padding: 3px 6px; }
   body.rail-collapsed #railToggle { margin: 0; }
   #treeResize { flex: 0 0 5px; width: 5px; cursor: col-resize; touch-action: none; background: transparent; position: relative; z-index: 3; }
@@ -1017,7 +1018,8 @@
   @media (max-width: 760px) {
     body:not(.tmMode) #app { flex-direction: row; overflow: hidden; }
     body:not(.tmMode) #rail { flex: 0 0 48px; width: 48px; max-height: none; min-height: 0; flex-direction: column; flex-wrap: nowrap; align-items: stretch; overflow: auto; padding: 10px 5px; border-right: 1px solid var(--line); border-bottom: 0; }
-    body:not(.tmMode) #brand { flex: 0 0 auto; justify-content: center; flex-wrap: wrap; padding: 0 0 8px; }
+    body:not(.tmMode) #brand { flex: 0 0 auto; flex-direction: column; justify-content: center; padding: 0 0 8px; }
+    #railToggle { margin: 0; }
     body:not(.tmMode) .brandName, body:not(.tmMode) .navLabel { display: none !important; }
     body:not(.tmMode) #newReq { flex: 0 0 38px; width: 38px; height: 38px; margin: 0 0 8px; padding: 0; overflow: hidden; font-size: 0; }
     body:not(.tmMode) #newReq::before { content: "+"; font-size: 19px; }
@@ -1061,7 +1063,7 @@
   body { font: 13.5px/1.48 "Segoe UI Variable", "Inter", system-ui, -apple-system, sans-serif; }
   #rail { background: #fbfcff; }
   #brand .logo { border-radius: 8px; box-shadow: 0 2px 6px rgba(36,37,104,.16); }
-  .navItem { min-height: 36px; }
+  .navItem { flex-shrink: 0; min-height: 40px; }
   .navItem.on { background: #e9ebfa; box-shadow: inset 3px 0 0 var(--ink); }
   #sideHead { padding-top: 16px; padding-bottom: 7px; }
   #sideHead h2 { font-size: 13px; letter-spacing: 0; color: var(--fg); font-weight: 700; }
@@ -1104,6 +1106,88 @@
   @media (min-width: 761px) { #work { padding: 12px; gap: 10px; } }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  }
+  body.tmMode { --ink: #126d64; --ink-hover: #09554e; --ink-soft: #eaf5f1; }
+  body.tmMode #side { flex: 0 0 200px; width: 200px; }
+  body.tmMode #main, body.tmMode #work { min-width: 0; }
+  body.tmMode #content { display: flex; overflow: hidden; }
+  body.tmMode #work { background: #fff; padding: 22px 26px; gap: 16px; overflow: auto; }
+  body.tmMode #meta, body.tmMode #treeResize { display: none !important; }
+  body.tmMode #topbar { flex-wrap: nowrap; max-height: none; }
+  body.tmMode .tmPanel, body.tmMode .tmCard { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+  body.tmMode .tmPanel { border-bottom: 1px solid var(--line); }
+  body.tmMode .tmSecHd { background: #f6f8f8; letter-spacing: 0; text-transform: none; font-size: 12px; }
+  body.tmMode .tmCard { padding: 0; }
+  body.tmMode .tmRequestSummary { margin: 0; border-radius: 4px; background: #f6f8f8; }
+  .tmNav { display: flex; flex-direction: column; gap: 3px; padding: 0 8px 10px; }
+  .tmNav button { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 36px; padding: 7px 10px; border: 0; border-radius: 4px; background: transparent; text-align: left; color: var(--dim); }
+  .tmNav button.on { background: var(--ink-soft); color: var(--ink); font-weight: 700; }
+  .tmNav button:hover { background: #f0f3f4; }
+  .tmNav .tmNavName { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .tmNav small { font-family: var(--mono); color: var(--dim); }
+  .tmPageHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .tmPageHead h1 { font-size: 23px; margin: 0; letter-spacing: 0; overflow-wrap: anywhere; }
+  .tmPageHead p { color: var(--dim); margin: 3px 0 0; font-size: 12px; }
+  .tmPageHead > div { min-width: 0; }
+  .tmOverview { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--line); gap: 4px 26px; padding-bottom: 16px; }
+  .tmMetric { background: none; border: 0; border-bottom: 2px solid transparent; padding: 4px 0; display: flex; gap: 8px; align-items: baseline; color: var(--dim); }
+  .tmMetric b { font-size: 21px; font-family: var(--mono); color: var(--fg); }
+  .tmMetric[aria-pressed=true] { border-color: var(--ink); color: var(--ink); }
+  .tmMetric.bad b { color: var(--red); }
+  .tmMetric.ok b { color: var(--green); }
+  .tmFilters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .tmFilters input { flex: 1 1 230px; min-width: 130px; }
+  .tmFilters select { flex: 0 1 155px; min-width: 100px; }
+  .tmInventory { min-width: 0; width: 100%; }
+  .tmSelectionBar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 0; min-height: 58px; }
+  .tmSelectionBar .tmSelectionCount { margin-right: auto; color: var(--dim); }
+  .tmTableWrap { width: 100%; overflow: auto; }
+  .tmTable { width: 100%; border-collapse: collapse; text-align: left; }
+  .tmTable th { color: var(--dim); font-size: 11px; font-weight: 600; padding: 10px 12px; border-block: 1px solid var(--line); background: #f6f8f8; white-space: nowrap; }
+  .tmTable td { padding: 12px; border-bottom: 1px solid var(--line); vertical-align: middle; font-size: 12px; }
+  .tmTable tbody tr:hover { background: #f8fbfa; }
+  .tmTable tr.selected { background: var(--ink-soft); }
+  .tmTable .tmCheck { width: 34px; padding-right: 0; }
+  .tmTable input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--ink); cursor: pointer; }
+  .tmTable .tmNameCell { min-width: 200px; max-width: 400px; }
+  .tmTable small { display: block; color: var(--dim); margin-top: 4px; overflow-wrap: anywhere; }
+  .tmTextButton { padding: 0; background: transparent; border: 0; color: var(--fg); text-align: left; font: inherit; font-weight: 650; overflow-wrap: anywhere; }
+  .tmTextButton:hover { color: var(--ink); text-decoration: underline; }
+  .tmEndpoint { font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
+  .tmPill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; border-radius: 4px; padding: 3px 7px; color: var(--dim); background: #eef1f4; white-space: nowrap; }
+  .tmPill.ok { background: #e5f5ed; color: #176441; }
+  .tmPill.bad { background: #fdeeee; color: #ae3030; }
+  .tmPill.warn { background: #fff4df; color: #885600; }
+  .tmEmpty { padding: 48px 16px; text-align: center; color: var(--dim); border-bottom: 1px solid var(--line); }
+  .tmEmpty h2 { font-size: 16px; color: var(--fg); margin: 0 0 14px; }
+  .tmEditorTabs { display: flex; gap: 18px; border-bottom: 1px solid var(--line); overflow: auto; flex: none; }
+  .tmEditorTabs button { padding: 10px 0; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--dim); white-space: nowrap; }
+  .tmEditorTabs button[aria-selected=true] { border-bottom-color: var(--ink); color: var(--ink); font-weight: 700; }
+  .tmEditorBody { min-width: 0; }
+  .tmEditorBody .tmPanel { width: 100%; }
+  .tmEditorBody .tmStepList { padding: 14px 0; }
+  .tmSaveState { color: var(--dim); font-size: 12px; }
+  .tmSaveState.error { color: var(--red); }
+  .tmResultHeader { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 0; }
+  .tmResultHeader h2 { margin: 0; font-size: 16px; }
+  .tmResult { border-bottom: 1px solid var(--line); }
+  .tmResult summary { padding: 12px 4px; cursor: pointer; overflow-wrap: anywhere; }
+  .tmResult summary .tmPill { margin: 0 8px; }
+  .tmResult .tmStepList { padding: 4px 12px 14px; }
+  .tmStep small { display: block; white-space: pre-wrap; }
+  @media (max-width: 1120px) { body.tmMode #side { flex-basis: 175px; width: 175px; } body.tmMode #work { padding: 16px; } .tmTable .tmSecondary { display: none; } }
+  @media (max-width: 760px) {
+    body.tmMode #side { width: min(280px, calc(100vw - 60px)); }
+    body.tmMode #work { padding: 12px; }
+    body.tmMode #content { height: auto; flex: 1; min-height: 0; }
+    .tmPageHead h1 { font-size: 20px; }
+    .tmOverview { gap: 4px 16px; }
+    .tmMetric b { font-size: 18px; }
+    .tmTable .tmOptional { display: none; }
+    .tmTable td, .tmTable th { padding: 9px 7px; }
+    .tmTable .tmNameCell { min-width: 150px; }
+    .tmEditorTabs { gap: 14px; }
+    .tmSelectionBar .btn { padding: 6px 9px; }
   }
 </style>
 </head>
@@ -1887,6 +1971,7 @@ function arrowTabKey(e, current, options, onSelect, group) {
 
 document.querySelectorAll('.navItem[data-view]').forEach(b => b.onclick = async () => {
   if (S.reqDirty && S.req && !(await saveRequest())) return;
+  if (S.view === 'tests' && !(await flushTmEdits())) return;
   S.view = b.dataset.view;
   document.body.classList.remove('meta-open');
   $('metaToggle').setAttribute('aria-expanded', 'false'); $('metaToggle').textContent = 'Details';
@@ -2321,6 +2406,7 @@ function openAssertFromResponse(sample, onAdded) {
 }
 
 async function createManagedTest(folderId = null) {
+  if (!(await flushTmEdits())) return;
   const opts = [];
   for (const c of S.tm?.collections || []) for (const q of c.requests || []) opts.push({ value: String(q.id), label: `${q.method} ${q.name}`, hint: c.name });
   if (!opts.length) { toast('Create a request first', true); return; }
@@ -2337,11 +2423,14 @@ async function createTestFolder() {
   catch (e) { toast(e.message, true); }
 }
 async function createTestSet() {
+  if (!(await flushTmEdits())) return;
   const name = await modal.prompt('New test set name'); if (!name) return;
   try { const set = await api('/api/test-sets', { method: 'POST', body: { name, testIds: [] } }); await loadTestsState(); renderTestSetEditor(set.id); toast('Test set created'); }
   catch (e) { toast(e.message, true); }
 }
 async function createTestExecution(scope = {}) {
+  if (!(await flushTmEdits())) return;
+  if (Array.isArray(scope.testIds) && !scope.testIds.length) return toast('No enabled tests selected', true);
   const name = await modal.prompt('New execution name', { value: 'Relay execution ' + new Date().toISOString().slice(0, 16).replace('T', ' ') });
   if (!name) return;
   const envChoices = [{ value: '', label: 'No environment' }, ...(S.state.environments || []).map(e => ({ value: e.name, label: e.name }))];
@@ -2359,19 +2448,23 @@ async function createTestExecution(scope = {}) {
   } catch (e) { toast(e.message, true); }
 }
 async function renderTestSetEditor(id) {
-  S.testSetId = id; S.testId = null;
-  const set = (S.tm?.testSets || []).find(s => String(s.id) === String(id)); if (!set) return;
-  renderSide();
+  if (!(await flushTmEdits())) return;
+  S.testSetId = id; S.testId = null; S.testExecutionId = null; S.tmPage = 'sets'; S.tmFolder = null;
+  const source = (S.tm?.testSets || []).find(s => String(s.id) === String(id)); if (!source) return;
+  const draft = tmDraft('test-sets', source), set = draft.value, save = draft.save;
+  renderSide(); renderTestsTopbar();
   $('meta').hidden = true; $('crumb').innerHTML = ''; $('crumb').append('Test Management / ', h('b', {}, set.name));
   const work = $('work'); work.innerHTML = '';
   const selected = new Set((set.testIds || []).map(String));
-  const save = debounce(async () => { try { await api('/api/test-sets/' + set.id, { method: 'PUT', body: set }); await loadTestsState(); renderSide(); } catch (e) { toast(e.message, true); } }, 300);
+  work.append(h('header', { class: 'tmPageHead' }, h('div', {}, h('button', { class: 'tmTextButton', onclick: () => showTmPage('sets') }, 'All test sets'), h('h1', {}, set.name)),
+    h('div', { class: 'tmActions' }, h('button', { class: 'btn', onclick: () => createTestExecution({ testSetIds: [set.id] }) }, 'Plan execution'),
+      h('button', { class: 'btn dark', 'data-tm-run': '', disabled: S.tmRunning ? '' : undefined, onclick: () => runManagedTests({ testSetId: set.id }) }, 'Run set'))), tmSaveControl());
   const card = h('div', { class: 'card tmCard' },
-    h('div', { class: 'tmCardHead' }, h('h2', {}, 'Test set'), h('button', { class: 'btn dark', onclick: () => pushXray({ testSetId: set.id }) }, 'Push set to Xray')),
+    h('div', { class: 'tmCardHead' }, h('h2', {}, 'Set details')),
     h('div', { class: 'tmFormGrid' },
-      h('label', {}, 'Name'), h('input', { type: 'text', value: set.name, oninput: e => { set.name = e.target.value; save(); } }),
-      h('label', {}, 'Xray set key'), h('input', { type: 'text', value: set.xrayKey || '', oninput: e => { set.xrayKey = e.target.value; save(); } }),
-      h('label', {}, 'Description'), h('textarea', { value: set.description || '', oninput: e => { set.description = e.target.value; save(); } })));
+      h('label', { for: 'tmSetName' }, 'Name'), h('input', { id: 'tmSetName', type: 'text', value: set.name, oninput: e => { set.name = e.target.value; save(); } }),
+      h('label', { for: 'tmSetKey' }, 'Xray set key'), h('input', { id: 'tmSetKey', type: 'text', value: set.xrayKey || '', oninput: e => { set.xrayKey = e.target.value.trim().toUpperCase(); save(); } }),
+      h('label', { for: 'tmSetDescription' }, 'Description'), h('textarea', { id: 'tmSetDescription', value: set.description || '', oninput: e => { set.description = e.target.value; save(); } })));
   const list = h('div', { class: 'tmStepList', style: 'margin-top:14px' });
   for (const t of allManagedTests()) {
     list.append(h('label', { class: 'tmStep' },
@@ -2382,47 +2475,81 @@ async function renderTestSetEditor(id) {
       h('span', {}, h('b', {}, t.name), h('small', {}, findReqInTests(t.requestId)?.meta?.url || ''))));
   }
   card.append(h('h3', {}, 'Tests'), list, h('div', { class: 'tmActions', style: 'margin-top:12px;justify-content:flex-start' },
-    h('button', { class: 'btn', onclick: async () => { try { const r = await api('/api/xray/test-sets/' + set.id + '/create', { method: 'POST', body: {} }); toast('Created Xray test set: ' + r.issue.key); await loadTestsState(); renderTestSetEditor(set.id); } catch (e) { toast(e.message, true); } } }, 'Create Xray Test Set'),
-    h('button', { class: 'btn danger', onclick: async () => { if (!await modal.confirm('Delete this test set?', { danger: true, ok: 'Delete' })) return; await api('/api/test-sets/' + set.id, { method: 'DELETE' }); await loadTestsState(); renderTestsView(); } }, 'Delete set')));
+    h('button', { class: 'btn', onclick: async () => { if (!(await flushTmEdits())) return; try { const r = await api('/api/xray/test-sets/' + set.id + '/create', { method: 'POST', body: {} }); toast('Created Xray test set: ' + r.issue.key); tmDrafts.delete('test-sets:' + set.id); await loadTestsState(); renderTestSetEditor(set.id); } catch (e) { toast(e.message, true); } } }, 'Create Xray Test Set'),
+    h('button', { class: 'btn', onclick: () => pushXray({ testSetId: set.id }) }, 'Run and push to Xray'),
+    h('button', { class: 'btn danger', onclick: async () => { if (!(await flushTmEdits()) || !await modal.confirm('Delete this test set?', { danger: true, ok: 'Delete' })) return; try { await api('/api/test-sets/' + set.id, { method: 'DELETE' }); tmDrafts.delete('test-sets:' + set.id); await loadTestsState(); showTmPage('sets'); } catch (error) { toast(error.message, true); } } }, 'Delete set')));
   work.append(card);
 }
 async function renderExecutionEditor(id) {
-  S.testExecutionId = id; S.testSetId = null; S.testId = null;
+  if (!(await flushTmEdits())) return;
+  S.testExecutionId = id; S.testSetId = null; S.testId = null; S.tmPage = 'executions'; S.tmFolder = null;
   let ex = (S.tm?.executions || []).find(e => String(e.id) === String(id));
   if (!ex) ex = await api('/api/test-executions/' + id);
-  renderSide();
+  if (S.view !== 'tests' || S.testExecutionId !== id) return;
+  ex = tmDraft('test-executions', ex).value;
+  renderSide(); renderTestsTopbar();
   $('meta').hidden = true; $('crumb').innerHTML = ''; $('crumb').append('Test Management / ', h('b', {}, ex.name));
   const work = $('work'); work.innerHTML = '';
   const selected = executionTests(ex);
   const envSelect = executionEnvSelect(ex);
+  const summary = ex.lastSummary || {};
+  const results = summary.results || [];
+  const failedIds = results.filter(result => !result.passed && findTest(result.testId)?.enabled).map(result => result.testId);
+  work.append(h('header', { class: 'tmPageHead' }, h('div', {}, h('button', { class: 'tmTextButton', onclick: () => showTmPage('executions') }, 'All executions'), h('h1', {}, ex.name)),
+    h('div', { class: 'tmActions' },
+      failedIds.length ? h('button', { class: 'btn', 'data-tm-run': '', disabled: S.tmRunning ? '' : undefined, onclick: () => runManagedTests({ testIds: failedIds }) }, `Rerun failed (${failedIds.length})`) : null,
+      h('button', { class: 'btn dark', 'data-tm-run': '', disabled: selected.length && !S.tmRunning ? undefined : '', onclick: () => runExecution(ex.id) }, S.tmRunning ? 'Running...' : `Run execution (${selected.length})`))), tmSaveControl());
+  if (summary.executed) {
+    work.append(h('div', { class: 'tmResultHeader' }, managedStatusBadge(summary.failed ? 'FAILED' : 'PASSED'), h('h2', {}, `${summary.passed}/${summary.executed} passed`),
+      h('span', { class: 'note' }, `${Math.round(summary.durationMs || 0)} ms`),
+      h('span', { class: 'note' }, Object.hasOwn(summary, 'env') ? summary.env || 'No environment' : 'Environment not recorded'),
+      h('span', { class: 'note' }, summary.finishedAt ? new Date(summary.finishedAt).toLocaleString() : '')));
+    if (results.length) {
+      const filter = h('input', { type: 'checkbox', 'aria-label': 'Show failed results only', checked: !!S.tmFailedOnly });
+      const resultList = h('div', { id: 'tmExecutionResults' });
+      const draw = () => {
+        resultList.innerHTML = '';
+        const visible = S.tmFailedOnly ? results.filter(result => !result.passed) : results;
+        if (!visible.length) resultList.append(h('div', { class: 'tmEmpty' }, 'No failed tests'));
+        for (const result of visible) {
+          const details = h('details', { class: 'tmResult' }, h('summary', {}, result.name, managedStatusBadge(result.passed ? 'PASSED' : 'FAILED'),
+            h('span', { class: 'note' }, result.status ? `HTTP ${result.status} · ${Math.round(result.durationMs || 0)} ms` : 'Request error')),
+            renderStepList(result.steps || [], result), findTest(result.testId) ? h('button', { class: 'btn sm', onclick: () => { S.tmEditorTab = 'checks'; openTest(result.testId); } }, 'Edit test') : null);
+          details.open = !result.passed;
+          resultList.append(details);
+        }
+      };
+      filter.onchange = () => { S.tmFailedOnly = filter.checked; draw(); };
+      work.append(h('label', { class: 'tmRow' }, filter, 'Failed only'), resultList); draw();
+    } else work.append(h('p', { class: 'note' }, 'Individual results were not retained for this earlier execution.'));
+  }
   const card = h('div', { class: 'card tmCard' },
-    h('div', { class: 'tmCardHead' }, h('h2', {}, 'Test execution'),
-      h('button', { class: 'btn dark', onclick: () => runExecution(ex.id) }, 'Run'),
-      h('button', { class: 'btn', onclick: () => pushExecution(ex.id) }, 'Push to Xray')),
-    h('div', { class: 'tmFormGrid' },
-      h('label', {}, 'Name'), h('input', { type: 'text', value: ex.name, oninput: e => { ex.name = e.target.value; saveExecution(ex); } }),
-      h('label', {}, 'Environment'), envSelect,
-      h('label', {}, 'Xray execution'), h('input', { type: 'text', value: ex.xrayKey || '', placeholder: 'created after push', oninput: e => { ex.xrayKey = e.target.value.trim().toUpperCase(); saveExecution(ex); } }),
-      h('label', {}, 'Test plan'), h('input', { type: 'text', value: ex.testPlanKey || '', placeholder: S.tm?.xray?.testPlanKey || 'inherited', oninput: e => { ex.testPlanKey = e.target.value.trim().toUpperCase(); saveExecution(ex); } }),
-      h('label', {}, 'Description'), h('textarea', { value: ex.description || '', oninput: e => { ex.description = e.target.value; saveExecution(ex); } })));
-  card.append(h('div', { class: 'tmSecHd', style: 'margin-top:12px' }, 'Selected tests', h('span', { class: 'n' }, String(selected.length))));
+    h('div', { class: 'tmCardHead' }, h('h2', {}, 'Execution settings')),
+    h('fieldset', { class: 'tmFormGrid', disabled: S.tmRunning ? '' : undefined, style: 'border:0;padding:0;margin:0;min-width:0' },
+      h('label', { for: 'tmExecutionName' }, 'Name'), h('input', { id: 'tmExecutionName', type: 'text', value: ex.name, oninput: e => { ex.name = e.target.value; saveExecution(ex); } }),
+      h('label', { for: 'tmExecutionEnv' }, 'Environment'), envSelect,
+      h('label', { for: 'tmExecutionKey' }, 'Xray execution'), h('input', { id: 'tmExecutionKey', type: 'text', value: ex.xrayKey || '', placeholder: 'Created after push', oninput: e => { ex.xrayKey = e.target.value.trim().toUpperCase(); saveExecution(ex); } }),
+      h('label', { for: 'tmExecutionPlan' }, 'Test plan'), h('input', { id: 'tmExecutionPlan', type: 'text', value: ex.testPlanKey || '', placeholder: S.tm?.xray?.testPlanKey || 'Inherited', oninput: e => { ex.testPlanKey = e.target.value.trim().toUpperCase(); saveExecution(ex); } }),
+      h('label', { for: 'tmExecutionDescription' }, 'Description'), h('textarea', { id: 'tmExecutionDescription', value: ex.description || '', oninput: e => { ex.description = e.target.value; saveExecution(ex); } })));
+  card.append(h('div', { class: 'tmSecHd', style: 'margin-top:12px' }, 'Next run scope', h('span', { class: 'n' }, String(selected.length))));
   const list = h('div', { class: 'tmStepList' });
-  for (const t of selected) list.append(testSummaryRow(t));
+  for (const test of selected) list.append(h('div', { class: 'tmRow' }, h('button', { class: 'tmTextButton', onclick: () => openTest(test.id) }, test.name)));
   if (!selected.length) list.append(h('div', { class: 'empty' }, 'No tests selected for this execution.'));
   card.append(list);
-  const s = ex.lastSummary || {};
   card.append(h('div', { class: 'tmActions', style: 'margin-top:12px;justify-content:flex-start' },
-    h('span', { class: 'tmStatus ' + ((s.failed || 0) > 0 ? 'bad' : s.executed ? 'ok' : 'warn') },
-      s.executed ? `${s.passed}/${s.executed} passed` : ex.status || 'DRAFT'),
+    h('button', { class: 'btn', 'data-tm-run': '', disabled: selected.length && !S.tmRunning ? undefined : '', onclick: () => pushExecution(ex.id) }, 'Run and push to Xray'),
+    h('button', { class: 'btn', onclick: () => exportTestPack('execution', { executionId: ex.id, name: ex.name }) }, 'Export Relay pack'),
+    h('button', { class: 'btn', onclick: () => exportPlaywrightProject('execution', { executionId: ex.id, name: ex.name, env: ex.env || '' }) }, 'Export Playwright project'),
     h('button', { class: 'btn danger', onclick: async () => {
+      if (S.tmRunning || !(await flushTmEdits())) return;
       if (!await modal.confirm('Delete this execution?', { danger: true, ok: 'Delete' })) return;
-      await api('/api/test-executions/' + ex.id, { method: 'DELETE' });
-      await loadTestsState(); renderTestsDashboard(); renderSide();
+      try { await api('/api/test-executions/' + ex.id, { method: 'DELETE' }); tmDrafts.delete('test-executions:' + ex.id); await loadTestsState(); showTmPage('executions'); }
+      catch (error) { toast(error.message, true); }
     } }, 'Delete execution')));
   work.append(card);
 }
 function executionEnvSelect(ex) {
-  const sel = h('select', { onchange: e => { ex.env = e.target.value; saveExecution(ex); } },
+  const sel = h('select', { id: 'tmExecutionEnv', onchange: e => { ex.env = e.target.value; saveExecution(ex); } },
     h('option', { value: '' }, 'No environment'));
   for (const e of S.state.environments || []) {
     sel.append(h('option', { value: e.name, selected: e.name === (ex.env || '') ? '' : undefined }, e.name));
@@ -2432,13 +2559,7 @@ function executionEnvSelect(ex) {
   }
   return sel;
 }
-const saveExecution = debounce(async (ex) => {
-  try {
-    const saved = await api('/api/test-executions/' + ex.id, { method: 'PUT', body: ex });
-    const idx = (S.tm?.executions || []).findIndex(e => String(e.id) === String(saved.id));
-    if (idx >= 0) S.tm.executions[idx] = saved;
-  } catch (e) { toast(e.message, true); }
-}, 300);
+function saveExecution(ex) { tmDraft('test-executions', ex).save(); }
 function executionTests(ex) {
   const ids = new Set((ex.testIds || []).map(String));
   const folderIds = new Set((ex.folderIds || []).map(String));
@@ -2457,19 +2578,46 @@ function executionTests(ex) {
   });
 }
 async function runExecution(id) {
-  try {
-    const ex = (S.tm?.executions || []).find(e => String(e.id) === String(id));
-    const r = await api('/api/test-executions/' + id + '/run', { method: 'POST', body: { env: ex?.env || '' } });
-    toast(`Execution complete: ${r.summary.passed}/${r.summary.executed} passed`, r.summary.failed > 0);
-    await loadTestsState(); renderExecutionEditor(id);
-  } catch (e) { toast(e.message, true); }
+  return withTmRun(async () => {
+    const ex = S.tm.executions.find(item => item.id === id);
+    if (!ex || !executionTests(ex).length) throw new Error('No enabled tests selected');
+    if (S.view === 'tests') await renderExecutionEditor(id);
+    await performTmExecution(ex);
+  });
 }
 async function pushExecution(id) {
-  try {
-    const r = await api('/api/test-executions/' + id + '/xray-push', { method: 'POST', body: {} });
-    toast('Pushed to Xray: ' + r.executionKey);
-    await loadTestsState(); renderExecutionEditor(id);
-  } catch (e) { toast(e.message, true); }
+  if (!await modal.confirm('Run this execution again and publish the new results to Xray?', { ok: 'Run and push' })) return;
+  return withTmRun(async () => {
+    const result = await api('/api/test-executions/' + id + '/xray-push', { method: 'POST', body: {} });
+    tmDrafts.delete('test-executions:' + id);
+    await loadTestsState(); toast('Pushed to Xray: ' + result.executionKey);
+  });
+}
+async function withTmRun(action) {
+  if (S.tmRunning) return toast('An execution is already running');
+  S.tmRunning = true;
+  renderTestsTopbar();
+  const controls = [...document.querySelectorAll('[data-tm-run], #runBtn')].filter(button => !button.disabled);
+  controls.forEach(button => { button.disabled = true; });
+  try { if (await flushTmEdits()) await action(); }
+  catch (error) { toast(error.message, true); }
+  finally {
+    S.tmRunning = false;
+    controls.forEach(button => { button.disabled = false; });
+    if (S.view === 'tests') {
+      renderTestsTopbar(); renderSide();
+      if (S.testExecutionId) await renderExecutionEditor(S.testExecutionId);
+      else if (S.testId) renderTestEditor(findTest(S.testId));
+      else if (S.tmPage === 'tests') renderTestInventory();
+    }
+  }
+}
+async function performTmExecution(ex) {
+  const response = await api('/api/test-executions/' + ex.id + '/run', { method: 'POST', body: { env: ex.env || '' } });
+  for (const result of response.results || []) if (result.send) S.lastTestRun = { id: result.testId, result: result.send };
+  tmDrafts.delete('test-executions:' + ex.id);
+  await loadTestsState();
+  toast(`Execution complete: ${response.summary.passed}/${response.summary.executed} passed`, response.summary.failed > 0);
 }
 async function validateXrayTest(test) { try { const r = await api('/api/xray/tests/' + test.id + '/validate', { method: 'POST', body: {} }); toast('Xray test found: ' + (r.key || test.xrayKey)); } catch (e) { toast(e.message, true); } }
 async function createXrayTest(test) {
@@ -2477,13 +2625,21 @@ async function createXrayTest(test) {
     const r = await api('/api/xray/tests/' + test.id + '/create', { method: 'POST', body: {} });
     const warnings = r.warnings || [];
     toast(warnings.length ? ('Xray test: ' + r.issue.key + ' · ' + warnings.join('; ')) : ('Xray test: ' + r.issue.key), warnings.length > 0);
-    await loadTestsState(); renderTestEditor(findTest(test.id));
+    tmDrafts.delete('tests:' + test.id);
+    await loadTestsState();
+    if (S.view === 'tests' && S.testId === test.id) renderTestEditor(findTest(test.id));
   } catch (e) { toast(e.message, true); }
 }
 async function linkRequirements(test) { try { await api('/api/xray/tests/' + test.id + '/link-requirements', { method: 'POST', body: {} }); toast('Requirements linked'); } catch (e) { toast(e.message, true); } }
 async function testXrayConnection() { try { const r = await api('/api/xray/test-connection', { method: 'POST', body: {} }); toast(r.message || 'Connected'); } catch (e) { toast(e.message, true); } }
-async function pushXray(scope) { try { const r = await api('/api/xray/push', { method: 'POST', body: { env: S.envName, ...scope } }); toast('Pushed to Xray: ' + r.executionKey); } catch (e) { toast(e.message, true); } }
+async function pushXray(scope) {
+  if (Array.isArray(scope.testIds) && !scope.testIds.length) return toast('No tests selected', true);
+  if (!await modal.confirm('Run these tests again and publish the new results to Xray?', { ok: 'Run and push' })) return;
+  return withTmRun(async () => { const result = await api('/api/xray/push', { method: 'POST', body: { env: S.envName, ...scope } }); await loadTestsState(); toast('Pushed to Xray: ' + result.executionKey); });
+}
 async function exportTestPack(scope, payload = {}) {
+  if (!(await flushTmEdits())) return;
+  if (Array.isArray(payload.testIds) && !payload.testIds.length) return toast('No tests selected to export', true);
   try {
     const blob = await apiBlob('/api/tests/export', { method: 'POST', body: { scope, ...payload } });
     const name = slugify(payload.name || scope || 'relay-tests') + '.relay.zip';
@@ -2492,6 +2648,8 @@ async function exportTestPack(scope, payload = {}) {
   } catch (e) { toast(e.message, true); }
 }
 async function exportPlaywrightProject(scope, payload = {}) {
+  if (!(await flushTmEdits())) return;
+  if (Array.isArray(payload.testIds) && !payload.testIds.length) return toast('No tests selected to export', true);
   try {
     const blob = await apiBlob('/api/tests/export', { method: 'POST', body: { scope, env: S.envName || '', format: 'playwright', ...payload } });
     const name = slugify(payload.name || scope || 'relay-tests') + '.playwright.zip';
@@ -2500,81 +2658,46 @@ async function exportPlaywrightProject(scope, payload = {}) {
   } catch (e) { toast(e.message, true); }
 }
 async function openTestManagementExport() {
-  const choices = [
-    { value: 'tests', label: 'Relay pack: filtered tests' },
-    { value: 'playwright', label: 'Playwright project: filtered tests' },
-    { value: 'collection', label: 'Relay pack: source collection' },
-    { value: 'playwright-collection', label: 'Playwright project: source collection' },
-    { value: 'folder', label: 'Relay pack: selected test folder' },
-    { value: 'playwright-folder', label: 'Playwright project: selected test folder' },
-    { value: 'set', label: 'Relay pack: selected test set' },
-    { value: 'playwright-set', label: 'Playwright project: selected test set' },
-    { value: 'execution', label: 'Relay pack: selected execution' },
-    { value: 'playwright-execution', label: 'Playwright project: selected execution' },
-  ];
-  const choice = await modal.pick('Export Test Management pack', choices);
-  if (!choice) return;
-  if (choice === 'tests') return exportTestPack('tests', { testIds: filteredManagedTests().map(t => t.id), name: 'filtered-tests' });
-  if (choice === 'playwright') return exportPlaywrightProject('tests', { testIds: filteredManagedTests().map(t => t.id), name: 'filtered-tests' });
-  if (choice === 'collection') {
-    const test = findTest(S.testId) || filteredManagedTests()[0];
-    const meta = test && findReqInTests(test.requestId);
-    if (!meta) return toast('Select a test or filter to a collection first', true);
-    return exportTestPack('collection', { collectionId: meta.col.id, name: meta.col.name });
-  }
-  if (choice === 'playwright-collection') {
-    const test = findTest(S.testId) || filteredManagedTests()[0];
-    const meta = test && findReqInTests(test.requestId);
-    if (!meta) return toast('Select a test or filter to a collection first', true);
-    return exportPlaywrightProject('collection', { collectionId: meta.col.id, name: meta.col.name });
-  }
-  if (choice === 'folder') {
-    const test = findTest(S.testId) || filteredManagedTests()[0];
-    const folder = test?.folderId ? (S.tm?.testFolders || []).find(f => String(f.id) === String(test.folderId)) : null;
-    return exportTestPack('folder', { folderId: test?.folderId || null, name: folder?.name || 'unfiled-tests' });
-  }
-  if (choice === 'playwright-folder') {
-    const test = findTest(S.testId) || filteredManagedTests()[0];
-    const folder = test?.folderId ? (S.tm?.testFolders || []).find(f => String(f.id) === String(test.folderId)) : null;
-    return exportPlaywrightProject('folder', { folderId: test?.folderId || null, name: folder?.name || 'unfiled-tests' });
-  }
-  if (choice === 'set') {
-    const set = (S.tm?.testSets || []).find(s => String(s.id) === String(S.testSetId)) || (S.tm?.testSets || [])[0];
-    if (!set) return toast('No test set to export', true);
-    return exportTestPack('set', { testSetId: set.id, name: set.name });
-  }
-  if (choice === 'playwright-set') {
-    const set = (S.tm?.testSets || []).find(s => String(s.id) === String(S.testSetId)) || (S.tm?.testSets || [])[0];
-    if (!set) return toast('No test set to export', true);
-    return exportPlaywrightProject('set', { testSetId: set.id, name: set.name });
-  }
-  if (choice === 'execution') {
-    const ex = (S.tm?.executions || []).find(x => String(x.id) === String(S.testExecutionId)) || (S.tm?.executions || [])[0];
-    if (!ex) return toast('No execution to export', true);
-    return exportTestPack('execution', { executionId: ex.id, name: ex.name });
-  }
-  if (choice === 'playwright-execution') {
-    const ex = (S.tm?.executions || []).find(x => String(x.id) === String(S.testExecutionId)) || (S.tm?.executions || [])[0];
-    if (!ex) return toast('No execution to export', true);
-    return exportPlaywrightProject('execution', { executionId: ex.id, name: ex.name, env: ex.env || S.envName || '' });
-  }
+  if (!(await flushTmEdits())) return;
+  const scopes = [];
+  const add = (scope, payload, label) => scopes.push({ scope, payload, value: String(scopes.length), label });
+  const current = findTest(S.testId);
+  if (current) add('tests', { testIds: [current.id], name: current.name }, 'Current test: ' + current.name);
+  const selected = allManagedTests().filter(test => tmSelection.has(test.id));
+  if (selected.length) add('tests', { testIds: selected.map(test => test.id), name: 'selected-tests' }, `${selected.length} selected tests`);
+  if (S.tmPage === 'tests' && !current && filteredManagedTests().length) add('tests', { testIds: filteredManagedTests().map(test => test.id), name: 'filtered-tests' }, `${filteredManagedTests().length} filtered tests`);
+  for (const collection of S.tm.collections) add('collection', { collectionId: collection.id, name: collection.name }, 'Collection: ' + collection.name);
+  for (const folder of S.tm.testFolders) add('folder', { folderId: folder.id, name: folder.name }, 'Folder: ' + folder.name);
+  for (const set of S.tm.testSets) add('set', { testSetId: set.id, name: set.name }, 'Test set: ' + set.name);
+  for (const execution of S.tm.executions) add('execution', { executionId: execution.id, name: execution.name, env: execution.env || '' }, 'Execution: ' + execution.name);
+  if (!scopes.length) return toast('No tests to export', true);
+  const choice = await modal.pick('Export scope', scopes); if (choice === null) return;
+  const format = await modal.pick('Export format', [{ value: 'relay', label: 'Relay pack' }, { value: 'playwright', label: 'Playwright project' }]);
+  if (!format) return;
+  const target = scopes[Number(choice)];
+  return format === 'relay' ? exportTestPack(target.scope, target.payload) : exportPlaywrightProject(target.scope, target.payload);
 }
 async function deleteManagedTest(test) {
+  if (!(await flushTmEdits())) return;
   if (!await modal.confirm(`Delete test "${test.name}"?`, { danger: true, ok: 'Delete' })) return;
-  try { await api('/api/tests/' + test.id, { method: 'DELETE' }); S.testId = null; await loadTestsState(); renderTestsView(); toast('Test deleted'); } catch (e) { toast(e.message, true); }
+  try { await api('/api/tests/' + test.id, { method: 'DELETE' }); tmDrafts.delete('tests:' + test.id); tmSelection.delete(test.id); S.testId = null; await loadTestsState(); renderTestsView(); toast('Test deleted'); } catch (e) { toast(e.message, true); }
 }
 async function moveManagedTestToFolder(testId, folderId) {
+  if (!(await flushTmEdits())) return;
   const test = findTest(testId) || await api('/api/tests/' + testId);
   test.folderId = folderId ? parseInt(folderId, 10) : null;
   try {
     const saved = await saveManagedTest(test, { reload: true });
+    tmDrafts.delete('tests:' + testId);
     renderSide();
     if (String(S.testId) === String(saved.id)) renderTestEditor(saved);
+    else if (S.tmPage === 'tests') renderTestsDashboard();
     const folder = folderId ? (S.tm?.testFolders || []).find(f => String(f.id) === String(folderId))?.name : 'Unfiled tests';
     toast('Moved to ' + (folder || 'folder'));
   } catch (e) { toast(e.message, true); }
 }
 async function showManagedTestCtx(e, test) {
+  e.stopPropagation();
   const folderOpts = [
     { value: 'root', label: 'Unfiled tests', hint: test.folderId ? '' : 'current' },
     ...(S.tm?.testFolders || []).map(f => ({ value: String(f.id), label: f.name, hint: String(test.folderId || '') === String(f.id) ? 'current' : '' })),
@@ -2586,15 +2709,9 @@ async function showManagedTestCtx(e, test) {
       if (choice === null) return;
       await moveManagedTestToFolder(test.id, choice === 'root' ? null : choice);
     }},
-    { icon: '⧉', label: 'Create similar test', action: async () => {
-      try {
-        const clone = { ...test, id: 0, name: test.name + ' copy' };
-        const created = await api('/api/tests', { method: 'POST', body: clone });
-        await loadTestsState(); openTest(created.id); toast('Test duplicated');
-      } catch (err) { toast(err.message, true); }
-    }},
+    { icon: '⧉', label: 'Create similar test', action: () => duplicateManagedTest(test) },
     { icon: '▶', label: 'Create execution from test', action: () => createTestExecution({ testIds: [test.id] }) },
-    { icon: '☁', label: 'Push test to Xray', action: () => pushXray({ testIds: [test.id] }) },
+    { icon: '☁', label: 'Run test and push to Xray', action: () => pushXray({ testIds: [test.id] }) },
     { icon: '↓', label: 'Export test pack', action: () => exportTestPack('tests', { testIds: [test.id], name: test.name }) },
     { icon: '↓', label: 'Export test as Playwright project', action: () => exportPlaywrightProject('tests', { testIds: [test.id], name: test.name }) },
     '-',
@@ -2627,26 +2744,31 @@ function showTestFolderCtx(e, folder) {
       { icon: '☁', label: 'Create Xray test set', action: () => createXraySetFromFolder(folder, tests) },
       { icon: '✎', label: 'Rename folder', action: async () => {
         const name = await modal.prompt('Rename test folder', { value: folder.name }); if (!name) return;
-        try { await api('/api/test-folders/' + folder.id, { method: 'PATCH', body: { ...folder, name } }); await loadTestsState(); renderSide(); toast('Folder renamed'); }
+        try { await api('/api/test-folders/' + folder.id, { method: 'PATCH', body: { ...folder, name } }); await loadTestsState(); if (!S.testId) renderTestsDashboard(); else renderSide(); toast('Folder renamed'); }
         catch (err) { toast(err.message, true); }
       }},
       { icon: '▤', label: 'Move all tests to…', action: async () => {
+        if (!(await flushTmEdits())) return;
         const choices = [{ value: 'root', label: 'Unfiled tests' }, ...(S.tm?.testFolders || []).filter(f => String(f.id) !== String(folder.id)).map(f => ({ value: String(f.id), label: f.name }))];
         const choice = await modal.pick('Move folder tests to', choices); if (choice === null) return;
-        for (const t of tests) { t.folderId = choice === 'root' ? null : parseInt(choice, 10); await saveManagedTest(t); }
-        await loadTestsState(); renderSide(); toast('Moved folder tests');
+        try {
+          for (const test of tests) { test.folderId = choice === 'root' ? null : parseInt(choice, 10); await saveManagedTest(test); tmDrafts.delete('tests:' + test.id); }
+          await loadTestsState(); renderTestsDashboard(); toast('Moved folder tests');
+        } catch (error) { await loadTestsState(); renderTestsDashboard(); toast(error.message, true); }
       }},
       '-',
       { icon: '🗑', label: 'Delete folder', danger: true, action: async () => {
+        if (!(await flushTmEdits())) return;
         const msg = tests.length ? `Delete "${folder.name}" and move ${tests.length} tests to Unfiled?` : `Delete "${folder.name}"?`;
         if (!await modal.confirm(msg, { danger: true, ok: 'Delete' })) return;
-        try { await api('/api/test-folders/' + folder.id, { method: 'DELETE' }); await loadTestsState(); renderSide(); toast('Folder deleted'); }
+        try { await api('/api/test-folders/' + folder.id, { method: 'DELETE' }); S.tmFolder = null; for (const test of tests) tmDrafts.delete('tests:' + test.id); await loadTestsState(); renderTestsDashboard(); toast('Folder deleted'); }
         catch (err) { toast(err.message, true); }
       }},
     ] : []),
   ]);
 }
 function showTestSetCtx(e, set) {
+  e.stopPropagation();
   ctxMenu.show(e.clientX, e.clientY, [
     { icon: '↗', label: 'Open set', action: () => renderTestSetEditor(set.id) },
     { icon: '▶', label: 'Run set', action: () => runManagedTests({ testSetId: set.id }) },
@@ -2659,6 +2781,7 @@ function showTestSetCtx(e, set) {
   ]);
 }
 function showExecutionCtx(e, ex) {
+  e.stopPropagation();
   ctxMenu.show(e.clientX, e.clientY, [
     { icon: '↗', label: 'Open execution', action: () => renderExecutionEditor(ex.id) },
     { icon: '▶', label: 'Run execution', action: () => runExecution(ex.id) },
@@ -2687,16 +2810,15 @@ async function renderTestsView() {
   document.body.classList.add('tmMode');
   $('meta').hidden = true;
   $('crumb').innerHTML = '';
-  $('crumb').append('AML', h('span', { class: 'sep' }, ' / '), h('b', {}, 'Test Management'));
+  $('crumb').textContent = 'Test Management';
   renderTestsTopbar();
   const work = $('work');
   work.innerHTML = '<div class="empty">Loading Test Management…</div>';
   try {
     await loadTestsState();
+    if (S.view !== 'tests') return;
     renderSide();
-    const first = S.testId && findTest(S.testId) ? findTest(S.testId) : filteredManagedTests()[0] || allManagedTests()[0];
-    if (first) await openTest(first.id);
-    else renderEmptyTestManagement();
+    renderTestsDashboard();
   } catch (e) {
     work.innerHTML = '';
     work.append(h('div', { class: 'empty' },
@@ -2721,6 +2843,7 @@ function renderTestsTopbar(test) {
   if (imp) imp.hidden = true;
   if (exp) exp.hidden = true;
   if (env) env.hidden = false;
+  if (S.tmRunning) top.append(h('span', { class: 'tmTopBtn tmRunStatus', role: 'status', 'aria-live': 'polite' }, 'Execution running...'));
   $('treeToggle').textContent = 'Suite';
   $('treeToggle').setAttribute('aria-label', 'Open test suite tree');
   top.append(
@@ -2733,9 +2856,7 @@ function renderTestsTopbar(test) {
       ]);
       b.setAttribute('aria-expanded', 'true'); setTimeout(() => b.setAttribute('aria-expanded', 'false'), 0);
     } }, 'Create ▾'),
-    h('button', { class: 'btn sm tmTopBtn', onclick: () => createManagedTest() }, '+ New test'),
-    h('button', { class: 'btn sm tmTopBtn', disabled: test ? undefined : 'true', onclick: () => test && duplicateManagedTest(test) }, 'Duplicate'),
-    h('button', { class: 'btn dark sm tmTopBtn', id: 'runBtn', disabled: test ? undefined : 'true', onclick: () => test && runManagedScope() }, 'Run'));
+    h('button', { class: 'btn sm tmTopBtn', onclick: openTestManagementExport }, 'Export'));
 }
 function renderEmptyTestManagement() {
   const work = $('work'); work.innerHTML = '';
@@ -2772,11 +2893,16 @@ function testPassed(t) {
   return r ? r.status === 'PASSED' : null;
 }
 function filteredManagedTests() {
-  const q = (S.testSearch || '').toLowerCase();
+  const q = (S.testSearch || '').trim().toLowerCase();
   return allManagedTests().filter(t => {
     const req = findReqInTests(t.requestId);
-    const hay = [t.name, t.xrayKey, ...(t.tags || []), req?.meta?.name, req?.meta?.url, req?.col?.name].join(' ').toLowerCase();
+    const hay = [t.name, t.owner, t.xrayKey, ...(t.tags || []), ...(t.requirements || []), req?.meta?.name, t.request?.url || req?.meta?.url, req?.col?.name].join(' ').toLowerCase();
     if (q && !hay.includes(q)) return false;
+    if (S.tmFolder != null && String(t.folderId || '') !== String(S.tmFolder)) return false;
+    if (S.tmCollection && String(req?.col?.id) !== S.tmCollection) return false;
+    if (S.tmPriority && t.priority !== S.tmPriority) return false;
+    if (S.tmStatus && managedTestStatus(t) !== S.tmStatus) return false;
+    if (S.tmUnlinked && t.xrayKey) return false;
     for (const chip of S.testChips || []) {
       if (chip === 'failed' && testPassed(t) !== false) return false;
       if (chip === 'noxray' && t.xrayKey) return false;
@@ -2788,59 +2914,24 @@ function filteredManagedTests() {
   });
 }
 function renderTestsSide(list) {
-  $('sideTitle').textContent = 'Test suite';
-  list.append(h('div', { class: 'tmSuiteTools' },
-    h('button', { class: 'btn dark', onclick: () => createManagedTest() }, '+ New test'),
-    h('button', { class: 'btn', onclick: () => createTestFolder() }, '+ Folder'),
-    h('button', { class: 'btn', onclick: () => createTestSet() }, '+ Set')));
-  list.append(h('div', { class: 'tmSuiteSearch', style: 'padding:0 8px 8px' },
-    h('input', { type: 'text', placeholder: 'Search tests, endpoints, Xray…', style: 'width:100%', value: S.testSearch || '',
-      oninput: (e) => { S.testSearch = e.target.value; renderSide(); } })));
-  const chipDefs = [['failed', 'Failed'], ['noxray', 'No Xray link'], ['hasassert', 'Has assertions'], ['disabled', 'Disabled']];
-  const chips = h('div', { class: 'tmFilterChips' });
-  S.testChips = S.testChips || [];
-  for (const [key, label] of chipDefs) {
-    const on = S.testChips.includes(key);
-    const count = allManagedTests().filter(t => {
-      if (key === 'failed') return testPassed(t) === false;
-      if (key === 'noxray') return !t.xrayKey;
-      if (key === 'hasassert') return (t.assertions || []).length || t.scriptTests;
-      if (key === 'disabled') return !t.enabled;
-      return false;
-    }).length;
-    chips.append(h('button', { class: 'fchip' + (on ? ' on' : ''), onclick: () => {
-      S.testChips = on ? S.testChips.filter(x => x !== key) : [...S.testChips, key]; renderSide();
-    } }, label, h('span', { class: 'c' }, String(count))));
+  $('sideTitle').textContent = 'Test Management';
+  const nav = h('nav', { class: 'tmNav', 'aria-label': 'Test management views' });
+  for (const [key, label, count] of [['tests', 'Tests', allManagedTests().length], ['sets', 'Test sets', S.tm?.testSets?.length || 0], ['executions', 'Executions', S.tm?.executions?.length || 0]]) {
+    nav.append(h('button', { class: (S.tmPage || 'tests') === key && S.tmFolder == null ? 'on' : '', onclick: () => {
+      S.tmFolder = null; tmSelection.clear(); showTmPage(key);
+    } }, h('span', { class: 'tmNavName' }, label), h('small', {}, String(count))));
   }
-  list.append(chips);
-  const tests = filteredManagedTests();
-  const folders = [{ id: '', name: 'Unfiled tests' }, ...(S.tm?.testFolders || [])];
-  for (const f of folders) {
-    const folderKey = tmFolderKey(f);
-    const open = !S.tmCollapsedFolders.has(folderKey);
-    const group = tests.filter(t => String(t.folderId || '') === String(f.id));
-    list.append(testFolderRow(f, group.length, open));
-    if (!open) continue;
-    if (!group.length) list.append(h('div', { class: 'histRow', style: 'margin-left:8px' }, h('small', {}, 'Drop tests here or use Move to folder')));
-    for (const t of group) list.append(testSideRow(t));
+  list.append(nav, h('div', { class: 'tmGroup' }, 'Folders'));
+  const folders = h('div', { class: 'tmNav' });
+  for (const folder of [{ id: '', name: 'Unfiled' }, ...(S.tm?.testFolders || [])]) {
+    const count = allManagedTests().filter(test => String(test.folderId || '') === String(folder.id)).length;
+    folders.append(h('button', { class: S.tmFolder != null && String(S.tmFolder) === String(folder.id) ? 'on' : '',
+      onclick: () => { S.tmFolder = String(folder.id); tmSelection.clear(); showTmPage('tests'); },
+      oncontextmenu: event => { event.preventDefault(); showTestFolderCtx(event, folder); }
+    }, h('span', { class: 'tmNavName' }, folder.name), h('small', {}, String(count))));
   }
-  if (!tests.length) list.append(h('div', { class: 'histRow' }, h('small', {}, 'No tests match')));
-  if ((S.tm?.testSets || []).length) {
-    list.append(h('div', { class: 'tmGroup' }, 'Test sets'));
-    for (const set of S.tm.testSets) list.append(h('div', {
-      class: 'tmTestRow' + (String(S.testSetId) === String(set.id) ? ' on' : ''),
-      onclick: () => renderTestSetEditor(set.id),
-      oncontextmenu: (e) => { e.preventDefault(); e.stopPropagation(); showTestSetCtx(e, set); },
-    }, h('span', {}, '▣'), h('span', {}, h('span', { class: 'name' }, set.name), h('small', {}, `${(set.testIds || []).length} tests${set.xrayKey ? ' · ' + set.xrayKey : ''}`)), h('span', { class: 'tmBadge' }, 'SET')));
-  }
-  if ((S.tm?.executions || []).length) {
-    list.append(h('div', { class: 'tmGroup' }, 'Executions'));
-    for (const ex of S.tm.executions.slice(0, 8)) list.append(h('div', {
-      class: 'tmTestRow' + (String(S.testExecutionId) === String(ex.id) ? ' on' : ''),
-      onclick: () => renderExecutionEditor(ex.id),
-      oncontextmenu: (e) => { e.preventDefault(); e.stopPropagation(); showExecutionCtx(e, ex); },
-    }, h('span', {}, '▶'), h('span', {}, h('span', { class: 'name' }, ex.name), h('small', {}, `${ex.status || 'DRAFT'}${ex.xrayKey ? ' · ' + ex.xrayKey : ''}`)), h('span', { class: 'tmBadge' }, 'RUN')));
-  }
+  folders.append(h('button', { onclick: createTestFolder }, '+ New folder'));
+  list.append(folders);
 }
 function tmFolderKey(f) {
   return f.id ? 'folder:' + f.id : 'folder:root';
@@ -2888,28 +2979,138 @@ function testSideRow(t) {
     t.xrayKey ? h('span', { class: 'xrayTag', title: 'Linked to ' + t.xrayKey }, t.xrayKey) : h('span', { class: 'unlinkedDot', title: 'No Xray link' }));
 }
 function renderTestsDashboard() {
-  const tests = allManagedTests();
-  const linked = tests.filter(t => t.xrayKey).length;
-  const failed = tests.filter(t => testPassed(t) === false).length;
-  const disabled = tests.filter(t => !t.enabled).length;
+  S.tmPage = 'tests'; S.testId = null; S.testSetId = null; S.testExecutionId = null;
   const work = $('work'); work.innerHTML = ''; $('meta').hidden = true;
-  const shell = h('div', { class: 'tmShell' });
-  shell.append(h('div', { class: 'card tmHero' },
-    h('div', {}, h('h1', {}, 'Test Management'), h('p', {}, 'Create multiple API tests per request, organize them into folders, sets, and executions, then export a Relay pack for CI runs.')),
-    h('div', { class: 'tmActions' },
-      h('button', { class: 'btn dark', onclick: () => createManagedTest() }, 'Create test'),
-      h('button', { class: 'btn', onclick: () => createTestFolder() }, 'Create folder'),
-      h('button', { class: 'btn', onclick: () => createTestSet() }, 'Create test set'),
-      h('button', { class: 'btn', onclick: () => createTestExecution({ testIds: filteredManagedTests().map(t => t.id) }) }, 'Create execution'),
-      h('button', { class: 'btn', onclick: openTestManagementExport }, 'Export Relay pack'),
-      h('button', { class: 'btn', onclick: () => { S.view = 'settings'; document.querySelector('[data-view=settings]').click(); } }, 'Xray settings'))));
-  shell.append(h('div', { class: 'tmGrid' }, tmStat('Tests', tests.length), tmStat('Xray linked', linked), tmStat('Failed last run', failed), tmStat('Disabled', disabled)));
-  const recent = h('div', { class: 'card tmCard' },
-    h('div', { class: 'tmCardHead' }, h('h2', {}, 'Recent/selected tests'), h('button', { class: 'btn', onclick: () => runManagedTests({}) }, 'Run all')));
-  if (!tests.length) recent.append(h('div', { class: 'empty' }, 'No tests yet. Create one from an endpoint.'));
-  for (const t of tests.slice(0, 12)) recent.append(testSummaryRow(t));
-  shell.append(recent);
-  work.append(shell);
+  $('crumb').textContent = 'Test Management / Tests'; renderTestsTopbar(); renderSide();
+  const folder = S.tmFolder == null ? null : S.tm.testFolders.find(item => String(item.id) === S.tmFolder);
+  work.append(h('header', { class: 'tmPageHead' },
+    h('div', {}, h('h1', {}, S.tmFolder == null ? 'API tests' : folder?.name || 'Unfiled'), h('p', {}, `${allManagedTests().length} tests across ${S.tm.collections.length} collections`)),
+    h('div', { class: 'tmActions' }, folder ? h('button', { class: 'btn', onclick: event => showTestFolderCtx(event, folder) }, 'Folder actions') : null,
+      h('button', { class: 'btn dark', onclick: () => createManagedTest(S.tmFolder || null) }, '+ New test'))));
+  const metrics = h('div', { class: 'tmOverview' });
+  for (const [key, label, tone] of [['', 'All tests', ''], ['FAILED', 'Failed', 'bad'], ['PASSED', 'Passed', 'ok'], ['NOT RUN', 'Not run', ''], ['DISABLED', 'Disabled', '']]) {
+    const count = key ? allManagedTests().filter(test => managedTestStatus(test) === key).length : allManagedTests().length;
+    metrics.append(h('button', { class: 'tmMetric ' + tone, 'aria-pressed': String((S.tmStatus || '') === key), onclick: () => {
+      S.tmStatus = key; tmSelection.clear(); renderTestsDashboard();
+    } }, h('b', {}, String(count)), label));
+  }
+  const filter = (label, value, options, change) => h('select', { 'aria-label': label, onchange: event => { change(event.target.value); tmSelection.clear(); renderTestInventory(); } },
+    options.map(([key, text]) => h('option', { value: key, selected: value === key ? '' : undefined }, text)));
+  work.append(metrics, h('div', { class: 'tmFilters' },
+    h('input', { type: 'search', 'aria-label': 'Search tests', placeholder: 'Search tests, endpoints, owners, tags...', value: S.testSearch || '',
+      oninput: event => { S.testSearch = event.target.value; tmSelection.clear(); renderTestInventory(); } }),
+    filter('Filter by collection', S.tmCollection || '', [['', 'All collections'], ...S.tm.collections.map(item => [String(item.id), item.name])], value => { S.tmCollection = value; }),
+    filter('Filter by priority', S.tmPriority || '', [['', 'All priorities'], ...['critical', 'high', 'med', 'low'].map(value => [value, value === 'med' ? 'Medium' : value])], value => { S.tmPriority = value; }),
+    filter('Filter by Xray link', S.tmUnlinked ? 'unlinked' : '', [['', 'Any Xray link'], ['unlinked', 'Not linked']], value => { S.tmUnlinked = !!value; }),
+    h('button', { class: 'btn sm', onclick: () => { S.testSearch = ''; S.tmStatus = ''; S.tmCollection = ''; S.tmPriority = ''; S.tmUnlinked = false; S.testChips = []; tmSelection.clear(); renderTestsDashboard(); } }, 'Reset filters')),
+    h('div', { class: 'tmInventory', id: 'tmInventory' }));
+  renderTestInventory();
+}
+const tmSelection = new Set();
+function managedTestStatus(test) { return test.enabled ? lastRunForTest(test.id)?.status || 'NOT RUN' : 'DISABLED'; }
+function managedStatusBadge(status) {
+  return h('span', { class: 'tmPill ' + (status === 'PASSED' || status === 'COMPLETED' ? 'ok' : status === 'FAILED' ? 'bad' : status === 'NOT RUN' || status === 'DRAFT' ? 'warn' : '') }, status);
+}
+async function showTmPage(page) {
+  if (!(await flushTmEdits())) return;
+  S.tmPage = page; S.testId = null; S.testSetId = null; S.testExecutionId = null;
+  setTreeOpen(false);
+  if (page === 'tests') renderTestsDashboard(); else renderTmGroups(page);
+}
+function renderTestInventory() {
+  const root = $('tmInventory'); if (!root) return;
+  root.innerHTML = '';
+  const tests = filteredManagedTests();
+  const selected = tests.filter(test => tmSelection.has(test.id));
+  const runnable = selected.filter(test => test.enabled);
+  root.append(h('div', { class: 'tmSelectionBar' },
+    h('span', { class: 'tmSelectionCount', role: 'status' }, selected.length ? `${selected.length} selected / ${tests.length} shown` : `${tests.length} of ${allManagedTests().length} tests`),
+    selected.length ? h('button', { class: 'btn sm', onclick: () => { tmSelection.clear(); renderTestInventory(); } }, 'Clear selection') : null,
+    h('button', { class: 'btn sm', disabled: selected.length ? undefined : '', onclick: () => organizeManagedTests(selected) }, 'Organize'),
+    h('button', { class: 'btn sm', disabled: runnable.length ? undefined : '', onclick: () => createTestExecution({ testIds: runnable.map(test => test.id) }) }, 'Plan execution'),
+    h('button', { class: 'btn dark', 'data-tm-run': '', disabled: runnable.length && !S.tmRunning ? undefined : '', onclick: () => runManagedTests({ testIds: runnable.map(test => test.id) }) }, `Run selected (${runnable.length})`)));
+  if (!tests.length) {
+    root.append(h('div', { class: 'tmEmpty' }, h('h2', {}, allManagedTests().length ? 'No matching tests' : 'No API tests yet'),
+      h('button', { class: 'btn', onclick: () => allManagedTests().length ? resetTmFilters() : createManagedTest() }, allManagedTests().length ? 'Clear all filters' : 'Create test')));
+    return;
+  }
+  const checkAll = h('input', { type: 'checkbox', 'aria-label': 'Select all visible tests', checked: selected.length === tests.length,
+    onchange: event => { for (const test of tests) { if (event.target.checked) tmSelection.add(test.id); else tmSelection.delete(test.id); } renderTestInventory(); } });
+  checkAll.indeterminate = selected.length > 0 && selected.length < tests.length;
+  const body = h('tbody');
+  for (const test of tests) {
+    const request = findReqInTests(test.requestId);
+    const last = lastRunForTest(test.id);
+    body.append(h('tr', { class: tmSelection.has(test.id) ? 'selected' : '' },
+      h('td', { class: 'tmCheck' }, h('input', { type: 'checkbox', 'aria-label': 'Select ' + test.name, checked: tmSelection.has(test.id), onchange: event => {
+        if (event.target.checked) tmSelection.add(test.id); else tmSelection.delete(test.id); renderTestInventory();
+      } })),
+      h('td', { class: 'tmNameCell' }, h('button', { class: 'tmTextButton', onclick: () => openTest(test.id) }, test.name),
+        h('small', { class: 'tmEndpoint' }, h('span', { class: 'method m-' + (test.request?.method || request?.meta?.method || 'GET') }, test.request?.method || request?.meta?.method || 'GET'), ' ', test.request?.url || request?.meta?.url || 'No endpoint'),
+        test.tags?.length ? h('small', {}, test.tags.join(' · ')) : null),
+      h('td', {}, managedStatusBadge(managedTestStatus(test)), last ? h('small', {}, `${Math.round(last.durationMs || 0)} ms`) : null),
+      h('td', { class: 'tmOptional' }, test.priority === 'med' ? 'Medium' : test.priority || 'Unset', h('small', {}, test.owner || 'Unassigned')),
+      h('td', { class: 'tmSecondary' }, test.xrayKey || h('span', { class: 'note' }, 'Not linked')),
+      h('td', {}, h('button', { class: 'iconBtn', title: 'Actions for ' + test.name, 'aria-label': 'Actions for ' + test.name, onclick: event => showManagedTestCtx(event, test) }, '⋯'))));
+  }
+  root.append(h('div', { class: 'tmTableWrap' }, h('table', { class: 'tmTable', 'aria-label': 'API tests' },
+    h('thead', {}, h('tr', {}, h('th', { class: 'tmCheck' }, checkAll), h('th', {}, 'Test / Endpoint'), h('th', {}, 'Latest result'), h('th', { class: 'tmOptional' }, 'Priority / Owner'), h('th', { class: 'tmSecondary' }, 'Xray'), h('th', {}, ''))), body)));
+}
+function resetTmFilters() {
+  S.tmFolder = null; S.testSearch = ''; S.tmStatus = ''; S.tmCollection = ''; S.tmPriority = ''; S.tmUnlinked = false; S.testChips = [];
+  tmSelection.clear(); renderTestsDashboard();
+}
+async function organizeManagedTests(tests) {
+  if (!(await flushTmEdits())) return;
+  const action = await modal.pick('Organize selected tests', [{ value: 'folder', label: 'Move to folder' }, { value: 'set', label: 'Add to test set' }, { value: 'enable', label: 'Enable tests' }, { value: 'disable', label: 'Disable tests' }]);
+  if (!action) return;
+  try {
+    if (action === 'set') {
+      const id = await modal.pick('Add to test set', [{ value: 'new', label: 'New test set' }, ...S.tm.testSets.map(set => ({ value: String(set.id), label: set.name }))]);
+      if (id === null) return;
+      if (id === 'new') {
+        const name = await modal.prompt('New test set name'); if (!name) return;
+        await api('/api/test-sets', { method: 'POST', body: { name, testIds: tests.map(test => test.id) } });
+      } else {
+        const set = S.tm.testSets.find(item => String(item.id) === id);
+        await api('/api/test-sets/' + id, { method: 'PUT', body: { ...set, testIds: [...new Set([...(set.testIds || []), ...tests.map(test => test.id)])] } });
+        tmDrafts.delete('test-sets:' + id);
+      }
+    } else {
+      let folderId;
+      if (action === 'folder') {
+        const id = await modal.pick('Move to folder', [{ value: '', label: 'Unfiled' }, ...S.tm.testFolders.map(folder => ({ value: String(folder.id), label: folder.name }))]);
+        if (id === null) return;
+        folderId = id ? Number(id) : null;
+      }
+      for (const test of tests) {
+        await api('/api/tests/' + test.id, { method: 'PUT', body: { ...test, ...(action === 'folder' ? { folderId } : { enabled: action === 'enable' }) } });
+        tmDrafts.delete('tests:' + test.id);
+      }
+    }
+    await loadTestsState(); tmSelection.clear(); renderTestsDashboard(); toast('Tests updated');
+  } catch (error) { await loadTestsState(); renderTestsDashboard(); toast('Some changes could not be saved: ' + error.message, true); }
+}
+function renderTmGroups(page) {
+  const executions = page === 'executions';
+  const items = executions ? S.tm.executions : S.tm.testSets;
+  const title = executions ? 'Executions' : 'Test sets';
+  renderSide(); renderTestsTopbar(); $('meta').hidden = true; $('crumb').textContent = 'Test Management / ' + title;
+  const work = $('work'); work.innerHTML = '';
+  work.append(h('header', { class: 'tmPageHead' }, h('div', {}, h('h1', {}, title), h('p', {}, `${items.length} ${title.toLowerCase()}`)),
+    h('button', { class: 'btn dark', onclick: () => executions ? showTmPage('tests') : createTestSet() }, executions ? 'Select tests to run' : '+ New test set')));
+  if (!items.length) { work.append(h('div', { class: 'tmEmpty' }, h('h2', {}, executions ? 'No executions yet' : 'No test sets yet'))); return; }
+  const body = h('tbody');
+  for (const item of items) {
+    const summary = item.lastSummary;
+    body.append(h('tr', {}, h('td', { class: 'tmNameCell' }, h('button', { class: 'tmTextButton', onclick: () => executions ? renderExecutionEditor(item.id) : renderTestSetEditor(item.id) }, item.name),
+      h('small', {}, executions ? item.env || 'No environment' : item.description || '')),
+      h('td', {}, executions ? managedStatusBadge(item.status || 'DRAFT') : `${(item.testIds || []).length} tests`,
+        summary ? h('small', {}, `${summary.passed}/${summary.executed} passed`) : null),
+      h('td', { class: 'tmOptional' }, item.xrayKey || 'Not linked'),
+      h('td', {}, h('button', { class: 'iconBtn', title: 'Actions for ' + item.name, 'aria-label': 'Actions for ' + item.name, onclick: event => executions ? showExecutionCtx(event, item) : showTestSetCtx(event, item) }, '⋯'))));
+  }
+  work.append(h('div', { class: 'tmTableWrap' }, h('table', { class: 'tmTable', 'aria-label': title }, h('thead', {}, h('tr', {}, h('th', {}, executions ? 'Execution / Environment' : 'Test set'), h('th', {}, executions ? 'Result' : 'Tests'), h('th', { class: 'tmOptional' }, 'Xray'), h('th', {}, ''))), body)));
 }
 function tmStat(label, value) {
   return h('div', { class: 'card tmStat' }, h('span', { class: 'lbl' }, label), h('b', {}, String(value)));
@@ -2932,6 +3133,7 @@ function uiAssertion(a) {
   return { ...a };
 }
 function backendAssertion(a) {
+  if (!Object.hasOwn(a, 'exp') && (a.type === 'status' || a.type === 'header')) return { ...a };
   if (a.type === 'json') return { type: 'jsonpath', path: a.path || '$.', equals: a.exp ?? '' };
   if (a.type === 'text') return { type: 'contains', contains: a.exp || '' };
   if (a.type === 'timing') return { type: 'max_ms', max_ms: parseInt(a.exp, 10) || 1000 };
@@ -2948,13 +3150,16 @@ async function saveManagedTest(test, opts = {}) {
   return saved;
 }
 async function openTest(id) {
-  S.testId = id; S.testSetId = null;
+  if (!(await flushTmEdits())) return;
+  S.testId = id; S.testSetId = null; S.testExecutionId = null; S.tmPage = 'tests';
   try {
     const test = await api('/api/tests/' + id);
     await ensureTestRequestSpec(test);
+    if (S.view !== 'tests' || S.testId !== id) return;
+    tmDrafts.delete('tests:' + id);
     const idx = (S.tm?.tests || []).findIndex(t => String(t.id) === String(test.id));
     if (idx >= 0) S.tm.tests[idx] = test; else await loadTestsState();
-    renderSide(); renderTestEditor(test);
+    setTreeOpen(false); renderSide(); renderTestEditor(test);
   } catch (e) { toast(e.message, true); }
 }
 async function ensureTestRequestSpec(test) {
@@ -2973,61 +3178,67 @@ async function ensureTestRequestSpec(test) {
   return test.request;
 }
 function renderTestEditor(sourceTest) {
-  const meta = findReqInTests(sourceTest.requestId);
-  const test = { ...sourceTest, assertions: (sourceTest.assertions || []).map(uiAssertion) };
+  const draft = tmDraft('tests', sourceTest, value => ({ ...value, assertions: (value.assertions || []).map(backendAssertion) }));
+  const test = draft.value;
+  const meta = findReqInTests(test.requestId);
   $('meta').hidden = true;
   $('crumb').innerHTML = '';
   $('crumb').append(meta?.col?.name || 'Workspace', h('span', { class: 'sep' }, ' / '), h('b', {}, test.name));
   renderTestsTopbar(test);
   const work = $('work'); work.innerHTML = '';
-  const save = debounce(async () => {
-    try {
-      const saved = await saveManagedTest(test);
-      test.updatedAt = saved.updatedAt;
-      renderSide();
-    } catch (e) { toast(e.message, true); }
-  }, 350);
-  renderHandoffTestEditor(test, meta, save);
-  return;
-  const shell = h('div', { class: 'tmEditor' });
-  const main = h('div', { class: 'tmMain' });
-  main.append(h('section', { class: 'card tmCard' },
-    h('div', { class: 'tmCardHead' }, h('h2', {}, 'Test identity'), h('span', { class: 'tmStatus ' + (test.enabled ? 'ok' : 'warn') }, test.enabled ? 'ENABLED' : 'DISABLED')),
-    h('div', { class: 'tmFormGrid' },
-      h('label', {}, 'Name'), h('input', { type: 'text', value: test.name, oninput: e => { test.name = e.target.value; save(); } }),
-      h('label', {}, 'Endpoint'), endpointSelect(test, save),
-      h('label', {}, 'Request'), h('div', { class: 'tmUrl' }, h('span', { class: 'method m-' + (meta?.meta?.method || '') }, meta?.meta?.method || ''), ' ', meta?.meta?.url || ''),
-      h('label', {}, 'Folder'), testFolderSelect(test, save),
-      h('label', {}, 'Enabled'), h('input', { type: 'checkbox', checked: test.enabled, onchange: e => { test.enabled = e.target.checked; save(); renderTestEditor(test); } }))));
-  main.append(h('section', { class: 'card tmCard' },
-    h('div', { class: 'tmCardHead' }, h('h2', {}, 'Ownership and tags')),
-    h('div', { class: 'tmFormGrid' },
-      h('label', {}, 'Owner'), h('input', { type: 'text', value: test.owner || '', placeholder: 'team or owner', oninput: e => { test.owner = e.target.value; save(); } }),
-      h('label', {}, 'Priority'), h('select', { onchange: e => { test.priority = e.target.value; save(); } }, ['', 'low', 'med', 'high', 'critical'].map(p => h('option', { value: p, selected: (test.priority || '') === p ? '' : undefined }, p || 'unset'))),
-      h('label', {}, 'Tags'), tokenEditor(test.tags || [], vals => { test.tags = vals; save(); }, 'Add tag'))));
-  main.append(h('section', { class: 'card tmCard' },
-    h('div', { class: 'tmCardHead' }, h('h2', {}, `Assertions / Xray steps (${(test.assertions || []).length})`), h('span', { class: 'tmBadge' }, 'one step per assertion')),
-    h('div', { class: 'tmAssertionWrap' }, buildAssertionsEditor({ id: test.id, spec: test }, test, save))));
-  main.append(h('section', { class: 'card tmCard' },
-    h('div', { class: 'tmCardHead' }, h('h2', {}, 'Script test steps'), h('span', { class: 'tmBadge' }, 'pm.test')),
-    h('textarea', { class: 'tmScriptArea', placeholder: 'pm.test("response is valid", () => { pm.expect(pm.response.code).to.eql(200); });',
-      value: test.scriptTests || '', oninput: e => { test.scriptTests = e.target.value; save(); } })));
-  main.append(h('section', { class: 'card tmCard' },
-    h('div', { class: 'tmCardHead' }, h('h2', {}, 'Xray / Jira traceability')),
-    h('div', { class: 'tmFormGrid' },
-      h('label', {}, 'Xray test'), h('input', { type: 'text', value: test.xrayKey || '', placeholder: 'PROJ-123', oninput: e => { test.xrayKey = e.target.value.trim(); save(); } }),
-      h('label', {}, 'Requirements'), tokenEditor(test.requirements || [], vals => { test.requirements = vals; save(); }, 'Add issue key'),
-      h('label', {}, 'Test plan'), h('input', { type: 'text', value: test.testPlanKey || '', placeholder: S.tm?.xray?.testPlanKey || 'PROJ-TP1', oninput: e => { test.testPlanKey = e.target.value.trim(); save(); } })),
-    h('div', { class: 'tmActions', style: 'margin-top:12px;justify-content:flex-start' },
-      h('button', { class: 'btn', onclick: () => validateXrayTest(test) }, 'Validate key'),
-      h('button', { class: 'btn dark', onclick: () => createXrayTest(test) }, test.xrayKey ? 'Recreate/link test' : 'Create Xray test'),
-      h('button', { class: 'btn', onclick: () => linkRequirements(test) }, 'Link requirements'))));
-  const last = lastRunForTest(test.id);
-  main.append(h('section', { class: 'card tmCard' },
-    h('div', { class: 'tmCardHead' }, h('h2', {}, 'Last run'), last ? h('span', { class: 'tmStatus ' + (last.status === 'PASSED' ? 'ok' : 'bad') }, last.status) : h('span', { class: 'tmStatus warn' }, 'NOT RUN')),
-    last ? renderStepList(last.steps || [], last) : h('div', { class: 'note' }, 'Run this test to capture assertion/script step results.')));
-  shell.append(main, renderTestRunRail(test));
-  work.append(shell);
+  renderHandoffTestEditor(test, meta, draft.save);
+}
+const tmDrafts = new Map();
+function tmDraft(resource, source, encode = value => value) {
+  const key = resource + ':' + source.id;
+  if (tmDrafts.has(key)) return tmDrafts.get(key);
+  const value = structuredClone(source);
+  if (resource === 'tests') value.assertions = (value.assertions || []).map(uiAssertion);
+  const draft = { value, dirty: false, revision: 0, timer: null, pending: null, error: '' };
+  draft.save = () => {
+    draft.dirty = true; draft.revision++; draft.error = '';
+    clearTimeout(draft.timer); updateTmSaveState();
+    draft.timer = setTimeout(() => draft.flush().catch(() => {}), 350);
+  };
+  draft.flush = async () => {
+    clearTimeout(draft.timer);
+    if (draft.pending) return draft.pending;
+    if (!draft.dirty) return;
+    draft.pending = (async () => {
+      try {
+        while (draft.dirty) {
+          const revision = draft.revision;
+          const saved = await api('/api/' + resource + '/' + value.id, { method: 'PUT', body: structuredClone(encode(value)) });
+          const field = resource === 'tests' ? 'tests' : resource === 'test-sets' ? 'testSets' : 'executions';
+          const index = (S.tm?.[field] || []).findIndex(item => item.id === saved.id);
+          if (index >= 0) S.tm[field][index] = saved;
+          draft.dirty = revision !== draft.revision;
+          draft.error = '';
+        }
+      } catch (error) { draft.error = error.message; throw error; }
+      finally { draft.pending = null; updateTmSaveState(); }
+    })();
+    updateTmSaveState();
+    return draft.pending;
+  };
+  tmDrafts.set(key, draft);
+  return draft;
+}
+function updateTmSaveState() {
+  const label = $('tmSaveState'); if (!label) return;
+  const drafts = [...tmDrafts.values()];
+  const failed = drafts.find(draft => draft.error);
+  label.className = 'tmSaveState' + (failed ? ' error' : '');
+  label.textContent = failed ? 'Not saved: ' + failed.error : drafts.some(draft => draft.pending) ? 'Saving...' : drafts.some(draft => draft.dirty) ? 'Unsaved changes' : 'All changes saved';
+}
+async function flushTmEdits() {
+  try { for (const draft of tmDrafts.values()) await draft.flush(); return true; }
+  catch (error) { toast('Changes not saved. Retry before continuing: ' + error.message, true); return false; }
+}
+function tmSaveControl() {
+  const control = h('div', { class: 'tmRow' }, h('span', { id: 'tmSaveState', class: 'tmSaveState', role: 'status', 'aria-live': 'polite' }), h('button', { class: 'btn sm', onclick: flushTmEdits }, 'Save changes'));
+  queueMicrotask(updateTmSaveState);
+  return control;
 }
 const testPanelExpansion = new Map();
 function collapsibleTestPanel(test, key, panel) {
@@ -3049,18 +3260,28 @@ function xrayConfigured() {
 function renderHandoffTestEditor(test, meta, save) {
   const work = $('work'); work.innerHTML = '';
   const latest = lastRunForTest(test.id);
+  work.append(h('header', { class: 'tmPageHead' }, h('div', {},
+    h('button', { class: 'tmTextButton', onclick: () => showTmPage('tests') }, 'All tests'),
+    h('h1', {}, test.name)), h('div', { class: 'tmActions' },
+    h('button', { class: 'btn', onclick: () => duplicateManagedTest(test) }, 'Duplicate'),
+    h('button', { class: 'btn dark', id: 'runBtn', disabled: test.enabled && !S.tmRunning ? undefined : '', onclick: () => runSingleManagedTest(test) }, 'Run test'))));
   work.append(h('div', { class: 'tmRequestSummary', role: 'status' },
-    h('span', { class: 'method m-' + (meta?.meta?.method || '') }, meta?.meta?.method || 'REQUEST'),
-    h('span', { class: 'tmUrl' }, meta?.meta?.url || 'No linked request'),
-    h('span', { class: 'tmBadge' }, latest ? `Last run ${latest.status}` : 'Not run')));
-  work.append(renderAssertionPanel(test, save));
-  work.append(collapsibleTestPanel(test, 'identity', renderIdentityPanel(test, meta, save)));
-  work.append(collapsibleTestPanel(test, 'request', renderRequestOverridePanel(test, save)));
-  if (xrayConfigured() || test.xrayKey || test.testPlanKey || test.requirements?.length) {
-    work.append(collapsibleTestPanel(test, 'trace', renderTracePanel(test, meta, save)));
-  }
-  work.append(renderLastRunPanel(test, latest));
-  renderTestMetaRail(test);
+    h('span', { class: 'method m-' + (test.request?.method || meta?.meta?.method || 'GET') }, test.request?.method || meta?.meta?.method || 'GET'),
+    h('span', { class: 'tmUrl' }, test.request?.url || meta?.meta?.url || 'No linked request'), managedStatusBadge(managedTestStatus(test))));
+  work.append(tmSaveControl());
+  const tabs = [['checks', 'Assertions'], ['request', 'Request'], ['details', 'Details'], ['results', 'Last result'], ['xray', 'Xray links']];
+  const active = S.tmEditorTab || 'checks';
+  work.append(h('div', { class: 'tmEditorTabs', role: 'tablist', 'aria-label': 'Test editor sections' }, tabs.map(([key, label]) =>
+    h('button', { role: 'tab', id: 'tm-tab-' + key, 'aria-controls': 'tmEditorBody', 'aria-selected': String(active === key), tabindex: active === key ? '0' : '-1', 'data-tab-group': 'test-editor', 'data-tab': key,
+      onclick: () => { S.tmEditorTab = key; renderTestEditor(test); }, onkeydown: event => arrowTabKey(event, key, tabs.map(item => item[0]), next => { S.tmEditorTab = next; renderTestEditor(test); }, 'test-editor') }, label))));
+  const body = h('div', { class: 'tmEditorBody', id: 'tmEditorBody', role: 'tabpanel', 'aria-labelledby': 'tm-tab-' + active });
+  if (active === 'checks') body.append(renderAssertionPanel(test, save));
+  if (active === 'request') body.append(renderRequestOverridePanel(test, save));
+  if (active === 'details') body.append(renderIdentityPanel(test, meta, save));
+  if (active === 'results') body.append(renderLastRunPanel(test, latest));
+  if (active === 'xray') body.append(renderTracePanel(test, meta, save));
+  work.append(body);
+  $('meta').hidden = true;
 }
 function renderIdentityPanel(test, meta, save) {
   const tags = h('div', { class: 'tagWrap' });
@@ -3074,8 +3295,8 @@ function renderIdentityPanel(test, meta, save) {
     } }, '+ tag'));
   };
   renderTags();
-  const prio = h('select', { onchange: e => { test.priority = e.target.value; save(); renderTestEditor(test); } },
-    ['low', 'med', 'high', 'critical'].map(p => h('option', { value: p, selected: (test.priority || 'med') === p ? '' : undefined }, p)));
+  const prio = h('select', { 'aria-label': 'Test priority', onchange: e => { test.priority = e.target.value; save(); renderTestEditor(test); } },
+    ['', 'low', 'med', 'high', 'critical'].map(p => h('option', { value: p, selected: (test.priority || '') === p ? '' : undefined }, p === 'med' ? 'Medium' : p || 'Unset')));
   return h('section', { class: 'tmPanel' },
     h('div', { class: 'tmSecHd' }, 'Identity', h('span', { class: 'grow' }),
       h('button', { class: 'tmToggle' + (test.enabled ? ' on' : ''), title: test.enabled ? 'Enabled' : 'Disabled',
@@ -3124,13 +3345,13 @@ function renderRequestOverridePanel(test, save) {
     h('div', { class: 'tmSecBody' },
       h('div', { class: 'tmRequestGrid' },
         h('div', { class: 'tmKey' }, 'Method'),
-        h('select', { onchange: e => { req.method = e.target.value; save(); } },
+        h('select', { 'aria-label': 'Test request method', onchange: e => { req.method = e.target.value; save(); } },
           METHODS.map(m => h('option', { value: m, selected: (req.method || 'GET').toUpperCase() === m ? '' : undefined }, m))),
         h('div', { class: 'tmKey' }, 'URL'),
-        h('input', { type: 'text', class: 'mono', value: req.url || '', placeholder: 'https://api.example.test/resource',
+        h('input', { type: 'text', class: 'mono', 'aria-label': 'Test request URL', value: req.url || '', placeholder: 'https://api.example.test/resource',
           oninput: e => { req.url = e.target.value; save(); } }),
         h('div', { class: 'tmKey' }, 'Body type'),
-        h('select', { onchange: e => { req.body.type = e.target.value; save(); renderTestEditor(test); } },
+        h('select', { 'aria-label': 'Test body type', onchange: e => { req.body.type = e.target.value; save(); renderTestEditor(test); } },
           bodyTypes.map(t => h('option', { value: t, selected: (req.body.type || 'json') === t ? '' : undefined }, t))),
         h('div', { class: 'tmKey' }, 'Body'),
         bodyControl),
@@ -3156,7 +3377,7 @@ function renderAssertionPanel(test, save) {
   return h('section', { class: 'tmPanel' },
     h('div', { class: 'tmSecBody tmAssertionWrap' }, buildAssertionsEditor({ id: test.id, spec: test }, test, save)),
     h('div', { class: 'tmSecHd' }, 'Script assertion', h('span', { class: 'grow' }), h('span', { class: 'tmBadge' }, 'pm.test')),
-    h('div', { class: 'tmSecBody' }, h('textarea', { class: 'scriptEd', placeholder: 'pm.test(\"response is valid\", () => { pm.expect(pm.response.code).to.eql(200); });',
+    h('div', { class: 'tmSecBody' }, h('textarea', { class: 'scriptEd', 'aria-label': 'Test script', placeholder: 'pm.test(\"response is valid\", () => { pm.expect(pm.response.code).to.eql(200); });',
       oninput: e => { test.scriptTests = e.target.value; save(); } }, test.scriptTests || '')));
 }
 function renderTracePanel(test, meta, save) {
@@ -3168,22 +3389,18 @@ function renderTracePanel(test, meta, save) {
     h('div', { class: 'tmSecBody' },
       h('div', { class: 'tmTraceGrid' },
         h('div', { class: 'tmKey' }, 'Xray test'),
-        h('input', { type: 'text', class: 'keyInput mono', value: test.xrayKey || '', placeholder: 'AML-T142',
+        h('input', { type: 'text', class: 'keyInput mono', 'aria-label': 'Xray test key', value: test.xrayKey || '', placeholder: 'PROJ-123',
           oninput: e => { test.xrayKey = e.target.value.trim().toUpperCase(); save(); } }),
         h('div', { class: 'tmKey' }, 'Requirements'),
         tokenEditor(test.requirements || [], vals => { test.requirements = vals; save(); }, 'Add issue key'),
         h('div', { class: 'tmKey' }, 'Test plan'),
-        h('input', { type: 'text', class: 'keyInput mono', value: test.testPlanKey || '', placeholder: x.testPlanKey ? x.testPlanKey + ' (inherited)' : 'AML-P1',
+        h('input', { type: 'text', class: 'keyInput mono', 'aria-label': 'Xray test plan', value: test.testPlanKey || '', placeholder: x.testPlanKey ? x.testPlanKey + ' (inherited)' : 'PROJ-456',
           oninput: e => { test.testPlanKey = e.target.value.trim().toUpperCase(); save(); } })),
       h('div', { class: 'traceActions' },
-        h('button', { class: 'btn sm', onclick: () => validateXrayTest(test) }, 'Validate link'),
-        h('button', { class: 'btn sm', onclick: () => createXrayTest(test) }, linked ? 'Create/update steps' : 'Create Xray test'),
-        h('button', { class: 'btn sm', onclick: () => linkRequirements(test) }, 'Link requirements')),
-      h('div', { class: 'tmCoverage' },
-        coverageNode('Request', meta?.meta?.name || 'request', true),
-        coverageNode('Relay test', test.name, true),
-        coverageNode('Xray', test.xrayKey || 'missing link', linked),
-        coverageNode('Plan', test.testPlanKey || x.testPlanKey || 'inherited', true))));
+        h('button', { class: 'btn sm', onclick: async () => { if (!test.xrayKey) return toast('Enter an Xray test key first', true); if (await flushTmEdits()) validateXrayTest(test); } }, 'Validate link'),
+        h('button', { class: 'btn sm', onclick: async () => { if (await flushTmEdits()) createXrayTest(test); } }, linked ? 'Create/update steps' : 'Create Xray test'),
+        h('button', { class: 'btn sm', onclick: async () => { if (!test.xrayKey || !test.requirements?.length) return toast('Enter an Xray test key and requirement first', true); if (await flushTmEdits()) linkRequirements(test); } }, 'Link requirements'),
+        h('button', { class: 'btn sm', onclick: () => document.querySelector('[data-view=settings]').click() }, 'Xray settings'))));
 }
 function coverageNode(label, value, ok) {
   return h('div', { class: 'tmCovNode ' + (ok ? 'good' : 'bad') },
@@ -3196,9 +3413,8 @@ function renderLastRunPanel(test, last) {
       last ? h('span', { class: 'pill ' + (last.status === 'PASSED' ? 'ok' : 'bad') }, h('span', { class: 'dot' }), last.status) : h('span', { class: 'tmStatus warn' }, 'NOT RUN')),
     last ? h('div', {},
       h('div', { class: 'tmRunMeta' },
-        h('span', {}, h('span', { class: 'lbl' }, 'HTTP'), ' ', last.status),
         h('span', {}, h('span', { class: 'lbl' }, 'Time'), ' ', (last.durationMs || 0).toFixed(0), 'ms'),
-        h('span', {}, h('span', { class: 'lbl' }, 'Env'), ' ', S.envName || 'none')),
+        h('span', {}, h('span', { class: 'lbl' }, 'Executed'), ' ', new Date(last.executedAt).toLocaleString())),
       renderStepList(last.steps || [], last)) :
       h('div', { class: 'tmSecBody note' }, 'Run this test to capture assertion and script step results.'));
 }
@@ -3233,15 +3449,13 @@ function renderTestMetaRail(test) {
 }
 function scopeTests(test) {
   const scope = S.tmRunScope || 'selected';
-  if (scope === 'selected') return [test];
+  if (scope === 'selected') return test.enabled ? [test] : [];
   if (scope === 'folder') return allManagedTests().filter(t => String(t.folderId || '') === String(test.folderId || '') && t.enabled);
-  return allManagedTests().filter(t => t.enabled);
+  const collectionId = findReqInTests(test.requestId)?.col?.id;
+  return allManagedTests().filter(t => t.enabled && collectionId != null && String(findReqInTests(t.requestId)?.col?.id) === String(collectionId));
 }
 function scopePayload(test) {
-  const scope = S.tmRunScope || 'selected';
-  if (scope === 'selected') return { testIds: [test.id] };
-  if (scope === 'folder') return { testIds: scopeTests(test).map(t => t.id) };
-  return {};
+  return { testIds: scopeTests(test).map(t => t.id) };
 }
 async function runManagedScope(force) {
   const test = findTest(S.testId);
@@ -3257,8 +3471,10 @@ async function runManagedScope(force) {
   if (btn) { btn.disabled = false; btn.textContent = 'Run'; }
 }
 async function duplicateManagedTest(test) {
+  if (!(await flushTmEdits())) return;
   try {
-    const clone = { ...test, id: 0, name: test.name + ' (copy)' };
+    const source = findTest(test.id) || test;
+    const clone = { ...source, id: 0, name: source.name + ' (copy)', xrayKey: '' };
     const created = await api('/api/tests', { method: 'POST', body: clone });
     await loadTestsState(); openTest(created.id); toast('Duplicated test');
   } catch (e) { toast(e.message, true); }
@@ -3317,7 +3533,15 @@ function buildTmJUnit(tests) {
     '\n</testsuite>\n';
 }
 function endpointSelect(test, save) {
-  const sel = h('select', { onchange: e => { test.requestId = parseInt(e.target.value, 10); save(); renderTestEditor(test); } });
+  const sel = h('select', { 'aria-label': 'Linked request', onchange: async e => {
+    const requestId = parseInt(e.target.value, 10);
+    const oldId = test.requestId;
+    if (!await modal.confirm('Replace this test request with the selected endpoint? Its method, URL, headers and body will be replaced.', { ok: 'Replace request' })) { e.target.value = String(oldId); return; }
+    try {
+      const base = await api('/api/requests/' + requestId);
+      test.requestId = requestId; test.request = structuredClone(base.spec); save(); renderTestEditor(test);
+    } catch (error) { e.target.value = String(oldId); toast(error.message, true); }
+  } });
   for (const c of S.tm?.collections || []) {
     const group = h('optgroup', { label: c.name });
     for (const q of c.requests || []) group.append(h('option', { value: q.id, selected: String(q.id) === String(test.requestId) ? '' : undefined }, `${q.method} ${q.name}`));
@@ -3326,7 +3550,7 @@ function endpointSelect(test, save) {
   return sel;
 }
 function testFolderSelect(test, save) {
-  const sel = h('select', { onchange: e => { test.folderId = e.target.value ? parseInt(e.target.value, 10) : null; save(); renderSide(); } },
+  const sel = h('select', { 'aria-label': 'Test folder', onchange: e => { test.folderId = e.target.value ? parseInt(e.target.value, 10) : null; save(); renderSide(); } },
     h('option', { value: '' }, 'Unfiled'));
   for (const f of S.tm?.testFolders || []) sel.append(h('option', { value: f.id, selected: String(test.folderId || '') === String(f.id) ? '' : undefined }, f.name));
   return sel;
@@ -3346,7 +3570,7 @@ function renderStepList(steps, run) {
   if (run?.error) wrap.append(h('div', { class: 'runErr', style: 'margin:0 0 8px' }, run.error));
   for (const st of steps) wrap.append(h('div', { class: 'tmStep' },
     h('span', { class: 'ic ' + (st.passed ? 'ok' : 'bad') }, st.passed ? '✓' : '✕'),
-    h('span', {}, h('b', {}, st.name), h('small', {}, [st.expected, st.message].filter(Boolean).join(' · ')))));
+    h('span', {}, h('b', {}, st.name), h('small', {}, [st.expected ? 'Expected: ' + st.expected : '', st.actual ? 'Actual: ' + st.actual : '', st.message].filter(Boolean).join('\n')))));
   if (!steps.length && !run?.error) wrap.append(h('div', { class: 'note' }, 'No step details recorded.'));
   return wrap;
 }
@@ -3371,23 +3595,20 @@ function renderTestRunRail(test) {
   return rail;
 }
 async function runSingleManagedTest(test) {
-  try {
-    const r = await api('/api/tests/' + test.id + '/run', { method: 'POST', body: { env: S.envName } });
-    if (r.send) S.lastTestRun = { id: test.id, result: r.send };
-    toast(r.passed ? 'Test passed' : 'Test failed', !r.passed);
-    await loadTestsState(); renderTestEditor(findTest(test.id));
-  } catch (e) { toast(e.message, true); }
+  return runManagedTests({ testIds: [test.id] });
 }
 async function runManagedTests(scope) {
-  try {
-    const r = await api('/api/tests/run', { method: 'POST', body: { env: S.envName, ...scope } });
-    toast(`Run complete: ${r.passed}/${r.executed} passed`, r.failed > 0);
+  if (Array.isArray(scope.testIds) && !scope.testIds.length) return toast('No enabled tests selected', true);
+  return withTmRun(async () => {
+    const tests = executionTests({ ...scope, testSetIds: scope.testSetId ? [scope.testSetId] : scope.testSetIds }).filter(test =>
+      (!scope.requestId || test.requestId === scope.requestId) && (!scope.collectionId || findReqInTests(test.requestId)?.col?.id === scope.collectionId));
+    if (!tests.length) throw new Error('No enabled tests selected');
+    const name = (tests.length === 1 ? tests[0].name : `${tests.length} API tests`) + ' · ' + new Date().toLocaleString();
+    const execution = await api('/api/test-executions', { method: 'POST', body: { name, env: S.envName, testIds: tests.map(test => test.id) } });
     await loadTestsState();
-    renderSide();
-    const current = S.testId && findTest(S.testId);
-    if (current) renderTestEditor(current);
-    else renderTestsDashboard();
-  } catch (e) { toast(e.message, true); }
+    if (S.view === 'tests') await renderExecutionEditor(execution.id);
+    await performTmExecution(execution);
+  });
 }
 function reqRow(q, level = 2) {
   return h('div', {
@@ -3596,8 +3817,9 @@ function renderEnvSel() {
   for (const e of S.state.environments || []) sel.append(h('option', { value: e.name }, e.name));
   sel.value = S.state.environments.some(e => e.name === S.envName) ? S.envName : '';
 }
-$('envSel').onchange = () => {
+$('envSel').onchange = async () => {
   const nextEnv = $('envSel').value;
+  if (S.view === 'tests' && !(await flushTmEdits())) { $('envSel').value = S.envName; return; }
   if (S.req && S.view === 'collections') { openRequest(S.req.id, nextEnv); return; }
   S.envName = nextEnv;
   localStorage.envName = S.envName;
@@ -3605,7 +3827,9 @@ $('envSel').onchange = () => {
     S.last = S.lastByRequest.get(responseKey(S.req.id, S.envName)) || null;
     renderRequest();
   }
-  else if (S.view === 'tests') renderTestsView();
+  else if (S.view === 'tests') {
+    if (S.testId) renderTestEditor(tmDrafts.get('tests:' + S.testId)?.value || findTest(S.testId));
+  }
   else if (S.view === 'history') renderHistoryView();
   else if (S.view === 'environments') renderEnvView(S.envEdit);
   else if (S.view === 'presets') renderPresetView(S.presetId);
@@ -5798,17 +6022,18 @@ function renderHistoryView() {
       });
       if (!rows.length) list.append(h('div',{class:'empty'},S.history.length?'No history entries match these filters.':'No requests sent yet.'));
       for (const e of rows) {
+        const inspect = () => { historyCompareIds=[String(e.id)]; renderDetails(true); };
         const check = h('input',{type:'checkbox',checked:historyCompareIds.some(id=>String(id)===String(e.id)),'aria-label':`Select ${e.requestName} for comparison`,onchange:ev=>{
           const id=String(e.id); if(ev.target.checked){ if(historyCompareIds.length>=2){ev.target.checked=false;toast('Compare up to two history entries',true);return;} historyCompareIds.push(id); }
           else historyCompareIds=historyCompareIds.filter(x=>x!==id);
           renderRows(); renderDetails();
         }});
-        list.append(h('div',{class:'histRow',style:'display:flex;align-items:center;gap:10px'},check,
+        list.append(h('div',{class:'histRow',style:'display:flex;align-items:center;gap:10px',onclick:ev=>{ if (!ev.target.closest('input,button')) inspect(); }},check,
           h('span',{class:'method m-'+e.method},e.method||'GET'),
           h('span',{style:'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'},e.requestName||'(unnamed)',h('small',{style:'display:block'},e.url||'')),
           h('span',{class:'pill '+(e.status>=200&&e.status<400?'ok':'bad')},String(e.status)),
           h('small',{},`${Number(e.durationMs||0).toFixed(0)} ms · ${new Date(e.sentAt).toLocaleString()}`),
-          h('button',{class:'btn',onclick:()=>{historyCompareIds=[String(e.id)];renderDetails();}},'Inspect')));
+          h('button',{class:'btn',onclick:inspect},'Inspect')));
       }
     };
     const getDetails = async id => { if(!historyDetails.has(String(id))) historyDetails.set(String(id), await api('/api/history/'+id)); return historyDetails.get(String(id)); };
@@ -5820,11 +6045,12 @@ function renderHistoryView() {
         h('div',{class:'note',role:'status'},capped?'Stored response reached the 256 KiB history cap; this snapshot may be truncated.':'Stored response snapshot. Request environment and full request body/headers were not recorded.'),
         h('pre',{style:'max-height:45vh;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere',html:highlightCode(shown.text,shown.format)}));
     };
-    const renderDetails = async () => {
+    const renderDetails = async (scrollToDetails=false) => {
       detailArea.innerHTML=''; const ids=historyCompareIds.slice(0,2); if(!ids.length)return;
       detailArea.append(h('h3',{},ids.length===2?'Response comparison':'Response snapshot'));
       try { const data=await Promise.all(ids.map(getDetails)); const cards=h('div',{style:`display:grid;grid-template-columns:repeat(${ids.length},minmax(0,1fr));gap:10px`}); data.forEach(d=>cards.append(detailCard(d,ids.length===2))); detailArea.append(cards); }
       catch(e){ detailArea.append(h('div',{class:'note',role:'alert'},'Could not load this history entry: '+e.message)); }
+      finally { if (scrollToDetails) detailArea.scrollIntoView({block:'start'}); }
     };
     urlFilter.oninput=renderRows; statusFilter.onchange=renderRows; ageFilter.onchange=renderRows;
     root.append(heading,controls,list,detailArea); work.append(root); renderRows(); renderDetails();

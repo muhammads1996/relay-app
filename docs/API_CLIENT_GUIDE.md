@@ -221,20 +221,35 @@ The History view stores sent requests and responses locally in `relay.db`. Use i
 
 ## 11. Test Management
 
-Open Test Management from the left rail.
+Open Test Management from the left rail in Full mode. The navigation separates **Tests**, **Test sets**, and **Executions**. Folders narrow the test inventory without changing the source request collection.
 
-Current capabilities:
+### Organize And Select
 
-- Default test cases are created from existing requests.
-- A request can have multiple UI test cases.
-- Tests can be enabled or disabled.
-- Tests can have tags, owner, priority, Xray key, requirement keys, and test plan key.
-- Tests can override the request assertions and test script.
-- Tests can be organized into test folders and test sets.
-- Tests can be grouped into persisted executions from selected tests, folders, test sets, tags, and priorities.
-- You can run one test, selected tests, a folder, a collection, or a test set from the UI.
-- You can export a complete Playwright project from selected tests, a collection, a source folder, a test folder, a test set, or an execution.
-- Last run results show assertion and script-test steps.
+The test inventory shows each test's endpoint, latest verdict, priority, owner, tags, and Xray key. Search matches test names, endpoints, owners, tags, requirement keys, and Xray keys. Combine search with collection, priority, Xray-link, and result filters. Result filters use the latest result across environments, not only the active environment.
+
+Select individual rows or all visible tests. **Run selected (N)** counts only enabled tests. Changing filters clears the selection so hidden tests cannot remain in a run accidentally. **Organize** moves selected tests to a folder, adds them to an existing or new test set, or enables/disables them.
+
+### Author API Tests
+
+A request can have multiple test cases. Open a test to use these sections:
+
+- **Assertions**: response checks and `pm.test` scripts.
+- **Request**: per-test method, URL, headers, and body.
+- **Details**: name, linked request, enabled state, owner, priority, folder, and tags.
+- **Last result**: latest recorded verdict, timestamp, duration, and step details.
+- **Xray links**: test key, requirements, test plan, validation, and existing Xray actions. This section is available even before credentials are configured.
+
+Changes autosave with a visible status. Run, navigation, export, and Xray actions wait for pending changes. If saving fails, edits remain in the current page and **Save changes** retries them; execution is blocked until saving succeeds. Unsaved Test Management edits are not recovery drafts and do not survive closing or reloading the page. Duplicating a test clears its Xray test key so a new case does not silently reuse the original issue.
+
+### Execute And Investigate
+
+**Run test**, **Run selected**, folder runs, and **Run set** create named, saved executions using the active environment. **Plan execution** creates an execution without running it. The execution's own environment applies to subsequent runs.
+
+New execution results retain the test name, HTTP status, verdict, duration, environment, completion time, errors, and assertion/script steps. Full response payloads are not included in these execution snapshots. Failed tests open expanded; **Failed only** narrows the result list and **Rerun failed** creates a new execution for the failed tests that are still enabled. **Edit test** opens the corresponding definition.
+
+Reopening an execution shows its recorded results, not the latest result of each test from a different execution. Running the same saved execution again replaces its previous result snapshot; use a new execution to retain a separate run. Older executions may have only summary totals. Execution snapshots are not complete immutable copies of requests or environments.
+
+**Export** asks for an explicit scope and either a Relay pack or Playwright project. Selected tests, filtered tests, named collections, folders, sets, and executions remain available. Execution details also offer direct exports.
 
 Important current-state detail: Test Management data is stored in the SQLite workspace database. The CLI runs assertions and scripts stored in `.req.toml` request files. For CI, export or maintain the automation collection as files and use `relay run --config relay.ci.json`.
 
@@ -264,6 +279,8 @@ relay-app --workspace C:\path\to\workspace --migrate-xray-credentials --xray-bac
 The command verifies the vault copy before removing the SQLite row and keeps the backup for recovery. The backup itself still contains the old credentials, so store it securely. On other desktop platforms, local UI credential saves continue to use SQLite; prefer environment variables for shared or CI usage.
 
 From Test Management you can validate an existing Xray test key, create an Xray test, link requirement keys, create an Xray test set, create Relay executions, and push selected test runs to Xray as a new Test Execution.
+
+**Run and push to Xray** asks for confirmation, reruns the selected tests, and publishes the new results. It does not upload an earlier saved result snapshot. Live Xray actions require valid local credentials and project settings; linking metadata does not require adding any other integration.
 
 Playwright project exports include a Relay reporter. After a run, set `XRAY_PROJECT` and run `npm run xray:import`, or use `relay xray import relay-playwright-results.json --project KEY`. Exported `.env` files contain secret placeholders only; populate `RELAY_SECRET_*` locally or in CI.
 

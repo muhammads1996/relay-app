@@ -182,7 +182,7 @@ Supported request fields include:
 Supported assertions:
 
 | Type | Fields | Checks |
-|---|---|---|
+| --- | --- | --- |
 | `status` | `equals` | HTTP status code |
 | `jsonpath` | `path`, `equals` | JSON value at a simple JSONPath |
 | `header` | `name`, `equals` or `contains` | Response header |
@@ -269,10 +269,18 @@ For daily UI usage, see [docs/API_CLIENT_GUIDE.md](docs/API_CLIENT_GUIDE.md). Fo
 
 The `relay-app` command wraps the same workbench in a Wails v2 native webview.
 
-```sh
-# Windows
-go build -tags desktop,production -ldflags "-s -w -H windowsgui" -o relay-app.exe ./cmd/relay-app
+On Windows, run these commands in PowerShell from the repository root. Go 1.25 and Microsoft Edge WebView2 are required. Close any app using the output executable before rebuilding.
 
+```powershell
+go build -tags desktop,production -ldflags "-s -w -H windowsgui" -o build/relay-app.exe ./cmd/relay-app
+.\build\relay-app.exe --workspace C:\path\to\workspace
+```
+
+For a first evaluation, follow the [installation quick start](INSTALL_QUICK_START.md#build-and-evaluate-from-source) to create a disposable copy of the examples. The examples need a compatible API; they do not start a mock server.
+
+Build on the target platform for macOS or Linux:
+
+```sh
 # macOS
 go build -tags desktop,production -ldflags "-s -w" -o relay-app ./cmd/relay-app
 
@@ -283,10 +291,10 @@ go build -tags desktop,production,webkit2_41 -ldflags "-s -w" -o relay-app ./cmd
 Run it with an explicit workspace or set `RELAY_WORKSPACE`:
 
 ```sh
-relay-app --workspace my-collection
+./relay-app --workspace my-collection
 ```
 
-If no workspace is provided, the app uses the OS app-data location.
+If no workspace is provided, the app uses the OS app-data location: `%APPDATA%\Relay` on Windows, `~/Library/Application Support/Relay` on macOS, or the user configuration directory on Linux. Close all Relay processes using the workspace and back up the complete directory before upgrading. See [storage behavior](#browser-workbench) before assuming desktop edits are available to CLI runs.
 
 ## Current Limitations
 

@@ -856,6 +856,68 @@ pm.test("capture token", function() {
 	}
 }
 
+func TestManagedExecutionRetainsResultSnapshot(t *testing.T) {
+	server, requestID := newServer(t)
+	if err := server.DB.EnsureDefaultTestCases(); err != nil {
+		t.Fatal(err)
+	}
+	tests, err := server.DB.TestCases()
+	if err != nil || len(tests) != 1 {
+		t.Fatalf("tests = %v, err = %v", tests, err)
+	}
+	execution := &store.TestExecution{Name: "API smoke", Env: "local", TestIDs: []int64{tests[0].ID}}
+	if err := server.DB.CreateTestExecution(execution); err != nil {
+		t.Fatal(err)
+	}
+	response, document := call(t, server, "POST", "/api/test-executions/"+itoa(execution.ID)+"/run", `{}`)
+	if response.Code != http.StatusOK {
+		t.Fatalf("run: %d %v", response.Code, document)
+	}
+	tests[0].Assertions = []dsl.Assertion{{Type: "status", Equals: float64(500)}}
+	if err := server.DB.UpdateTestCase(&tests[0]); err != nil {
+		t.Fatal(err)
+	}
+	response, document = call(t, server, "POST", "/api/tests/"+itoa(tests[0].ID)+"/run", `{"env":"local"}`)
+	if response.Code != http.StatusOK || document["passed"] != false {
+		t.Fatalf("later run: %d %v", response.Code, document)
+	}
+	response, document = call(t, server, "GET", "/api/test-executions/"+itoa(execution.ID), "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("load: %d %v", response.Code, document)
+	}
+	summary := document["lastSummary"].(map[string]any)
+	results := summary["results"].([]any)
+	if summary["env"] != "local" || len(results) != 1 || summary["passed"] != float64(1) {
+		t.Fatalf("snapshot summary = %v", summary)
+	}
+	result := results[0].(map[string]any)
+	if result["passed"] != true || result["status"] != float64(200) || result["requestId"] != float64(requestID) || len(result["steps"].([]any)) == 0 {
+		t.Fatalf("snapshot result = %v", result)
+	}
+	if _, exists := result["send"]; exists {
+		t.Fatal("execution snapshot must not store complete response payloads")
+	}
+}
+
+func TestManagedEmptySetDoesNotRunOtherTests(t *testing.T) {
+	server, _ := newServer(t)
+	if err := server.DB.EnsureDefaultTestCases(); err != nil {
+		t.Fatal(err)
+	}
+	set := &store.TestSet{Name: "Empty set"}
+	if err := server.DB.CreateTestSet(set); err != nil {
+		t.Fatal(err)
+	}
+	response, document := call(t, server, "POST", "/api/tests/run", `{"testSetId":`+itoa(set.ID)+`}`)
+	if response.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("empty set run: %d %v", response.Code, document)
+	}
+	runs, err := server.DB.LastTestRuns()
+	if err != nil || len(runs) != 0 {
+		t.Fatalf("unexpected runs: %v, err = %v", runs, err)
+	}
+}
+
 func TestMoveRequestToFolder(t *testing.T) {
 	s, reqID := newServer(t)
 	rec, doc := call(t, s, "POST", "/api/folders", `{"collectionId":1,"name":"verify","headers":{},"vars":{}}`)

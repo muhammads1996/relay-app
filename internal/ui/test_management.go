@@ -460,7 +460,7 @@ func (s *Server) selectedTests(sel testSelection) ([]store.TestCase, error) {
 		if len(explicit) > 0 && !explicit[tc.ID] {
 			continue
 		}
-		if len(setIDs) > 0 && !setIDs[tc.ID] {
+		if len(sel.TestSetIDs) > 0 && !setIDs[tc.ID] {
 			continue
 		}
 		if len(folderIDs) > 0 {
@@ -697,7 +697,10 @@ func (s *Server) handleTestExecutionRun(w http.ResponseWriter, r *http.Request) 
 		ex.Status = "FAILED"
 	}
 	ex.LastSummary = summary
-	_ = s.DB.UpdateTestExecution(ex)
+	if err := s.DB.UpdateTestExecution(ex); err != nil {
+		httpError(w, 500, err)
+		return
+	}
 	writeJSON(w, map[string]any{"execution": ex, "results": results, "summary": summary})
 }
 
@@ -789,12 +792,19 @@ func (s *Server) runExecutionTests(ctx context.Context, ex store.TestExecution, 
 		return nil, nil, fmt.Errorf("no enabled tests selected")
 	}
 	dur := float64(time.Since(start).Microseconds()) / 1000
+	snapshots := make([]testCaseRunResult, len(results))
+	for index, result := range results {
+		snapshots[index] = result
+		snapshots[index].Send = nil
+	}
 	summary := map[string]any{
 		"executed":   len(results),
 		"passed":     passed,
 		"failed":     len(results) - passed,
 		"durationMs": dur,
 		"finishedAt": time.Now().UTC().Format(time.RFC3339),
+		"env":        ex.Env,
+		"results":    snapshots,
 	}
 	return results, summary, nil
 }

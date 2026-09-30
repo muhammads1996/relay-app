@@ -231,7 +231,8 @@
 
   /* response */
   #respMeta { display: flex; gap: 16px; align-items: baseline; padding: 10px 14px;
-              border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12.5px; }
+              border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12.5px;
+              flex-shrink: 0; background: var(--panel); }
   #respMeta .lbl { font-size: 10px; letter-spacing: .1em; color: var(--dim); font-weight: 700; }
   .pill { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
   .pill .dot { width: 7px; height: 7px; border-radius: 99px; background: var(--green); }
@@ -241,12 +242,15 @@
               white-space: pre-wrap; word-break: break-word; overflow: auto; }
   #respBody.nowrap { white-space: pre; overflow-wrap: normal; word-break: normal; }
   .hdrWrap { overflow: auto; }
-  #respCard { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  #respCard { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
   #respCard.hasResp { min-height: 0; }
+  #respCard > #respMeta { flex: 0 0 auto; z-index: 2; }
+  #respCard > .tabs { flex: 0 0 auto; z-index: 1; background: var(--panel); }
+  #respCard > #assertChips { flex: 0 0 auto; }
   #respCard.hasResp #respBody,
   #respCard.hasResp .hdrWrap,
   #respCard.hasResp #timingBars {
-    flex: 1 1 auto; min-height: 0; max-height: none; overflow: auto;
+    flex: 1 1 0px; min-height: 0; max-height: none; overflow: auto;
   }
   .hdrTitle { display: flex; align-items: center; gap: 8px; padding: 10px 14px 4px; font-size: 10px;
               letter-spacing: .08em; color: var(--dim); font-weight: 700; text-transform: uppercase; }
@@ -777,8 +781,9 @@
     min-width: 0;
   }
   table.hdr td.k { white-space: normal; overflow-wrap: anywhere; }
-  #respMeta { align-items: center; gap: 8px 16px; max-height: 132px; overflow: auto; }
+  #respMeta { align-items: center; gap: 8px 16px; flex-shrink: 0; }
   #respMeta .actions { flex: 0 1 auto; flex-wrap: wrap; margin-left: auto; }
+  #respCard > .tabs { flex-shrink: 0; }
   #respBody, #timingBars, .celPre, .celEd, .scriptEd, .runErr, .tmCodePreview, .jtree {
     max-width: 100%; overflow: auto;
   }
@@ -3872,6 +3877,8 @@ function renderScriptsTab(reqSpec, scripts, save) {
 
 function renderResponse(card) {
   card = card || $('respCard'); if (!card) return;
+  card.scrollTop = 0;
+  card.scrollLeft = 0;
   card.innerHTML = '';
   const r = S.last;
   card.classList.toggle('hasResp', !!r);

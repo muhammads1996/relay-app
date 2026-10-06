@@ -3837,6 +3837,7 @@ $('envSel').onchange = async () => {
 };
 
 function importPreviewText(format, preview, conflictNote='') {
+  const isEnvironment=preview.kind==='environment';
   const warnings=Array.isArray(preview.warnings)?preview.warnings:[];
   const lines=warnings.map(item=>{
     if(typeof item==='string')return `- ${item}`;
@@ -3844,7 +3845,9 @@ function importPreviewText(format, preview, conflictNote='') {
     return `- ${where?where+': ':''}${item.message||item.warning||JSON.stringify(item)}`;
   });
   const details=[
-    `${format} preview: ${Number(preview.requests)||0} requests`,
+    isEnvironment?`${format} environment preview: ${preview.environmentName}\n${Number(preview.variables)||0} variables${preview.secrets?` (${Number(preview.secrets)} secret${Number(preview.secrets)===1?'':'s'})`:''}`:`${format} preview: ${Number(preview.requests)||0} requests`,
+    isEnvironment&&preview.contentHash?'An existing environment with this name will be replaced.':'',
+    isEnvironment&&preview.secrets?'Secret values are read from RELAY_SECRET_* when requests run.':'',
     warnings.length?`Warnings (${warnings.length}):\n${lines.join('\n')}`:'No import warnings.',
     conflictNote,
     'Review the preview before committing. The original JSON stays in memory while you review.'
@@ -3852,18 +3855,27 @@ function importPreviewText(format, preview, conflictNote='') {
   return details.join('\n\n');
 }
 
+function importURL(endpoint, values) {
+  const url=new URL(endpoint,'http://relay.local');
+  for(const [key,value] of Object.entries(values)) {
+    if(value!==undefined&&value!==null)url.searchParams.set(key,String(value));
+  }
+  return url.pathname+url.search;
+}
+
 async function confirmBulkImport(endpoint, source, format, initialPreview) {
   let preview=initialPreview, conflictNote='';
   for(;;) {
-    if(!await modal.confirm(importPreviewText(format,preview,conflictNote),{ok:'Import collection'}))return {cancelled:true};
+    const isEnvironment=preview.kind==='environment';
+    if(!await modal.confirm(importPreviewText(format,preview,conflictNote),{ok:isEnvironment?'Import environment':'Import collection'}))return {cancelled:true};
     try {
-      const target=preview.workspaceHash?`${endpoint}?workspaceHash=${encodeURIComponent(preview.workspaceHash)}`:endpoint;
-      if(String(S.state?.storageMode||'').toLowerCase().includes('file')&&!preview.workspaceHash)throw new Error('The workspace changed or its revision is unavailable. The source text is retained; reload and preview again.');
+      const target=importURL(endpoint,{workspaceHash:preview.workspaceHash,collectionId:isEnvironment?preview.collectionId:undefined,contentHash:isEnvironment?preview.contentHash:undefined});
+      if(usesWorkspaceFiles()&&!preview.workspaceHash)throw new Error('The workspace changed or its revision is unavailable. The source text is retained; reload and preview again.');
       return {out:await api(target,{method:'POST',body:source}),preview};
     } catch(e) {
-      if(e.status!==409||(!preview.workspaceHash&&!String(S.state?.storageMode||'').toLowerCase().includes('file')))throw e;
+      if(e.status!==409||(!isEnvironment&&!preview.workspaceHash&&!usesWorkspaceFiles()))throw e;
       await refresh();
-      preview=await api(`${endpoint}?preview=1`,{method:'POST',body:source});
+      preview=await api(importURL(endpoint,{preview:1,collectionId:isEnvironment?preview.collectionId:undefined}),{method:'POST',body:source});
       conflictNote='The workspace changed before commit. Relay reloaded and refreshed this preview. Review it and confirm again to retry; no commit was repeated automatically.';
     }
   }
@@ -3881,18 +3893,23 @@ async function showImportFailure(error, source, backupName) {
 
 $('importBtn').onclick = async () => {
   const mode = h('select', { 'aria-label':'Import format' },
-    h('option', { value:'postman' }, 'Postman collection JSON'),
+    h('option', { value:'postman' }, 'Postman collection or environment JSON'),
     h('option', { value:'openapi' }, 'OpenAPI 3.x spec JSON'),
     h('option', { value:'curl' }, 'curl command'));
   const help = h('p', { class:'note' }, 'Choose a format. JSON imports show a preview and warnings before they are saved.');
   const curl = h('textarea', { 'aria-label':'curl command', placeholder:'curl --request GET https://api.example.test/path', value:S.lastCurlDraft, rows:'7', style:'width:100%;display:none' });
-  const updateImportMode = () => { const isCurl = mode.value === 'curl'; curl.style.display = isCurl ? 'block' : 'none'; curl.hidden = !isCurl; help.textContent = isCurl ? 'The parsed request will be added to the current collection or a new collection.' : mode.value === 'postman' ? 'Choose a JSON file next. Relay previews request count and warnings before commit.' : 'Choose an OpenAPI JSON file next. Relay imports it into the workspace.'; };
+  const collections=S.state.collections||[];
+  const current=S.reqId&&findReqMeta(S.reqId);
+  const collection=h('select',{'aria-label':'Environment import collection'},...collections.map(col=>h('option',{value:col.id},col.name)));
+  collection.value=String(current?.col.id||collections[0]?.id||'');
+  const collectionRow=h('label',{},'Environment collection',collection,h('span',{class:'note'},'Used when importing a new Postman environment.'));
+  const updateImportMode = () => { const isCurl = mode.value === 'curl'; curl.style.display = isCurl ? 'block' : 'none'; curl.hidden = !isCurl; collectionRow.hidden=mode.value!=='postman'||!usesWorkspaceFiles()||collections.length<2; help.textContent = isCurl ? 'The parsed request will be added to the current collection or a new collection.' : mode.value === 'postman' ? 'Choose a collection or environment JSON file next. Relay previews requests or variables and warnings before saving.' : 'Choose an OpenAPI JSON file next. Relay imports it into the workspace.'; };
   mode.addEventListener('change', updateImportMode); mode.addEventListener('input', updateImportMode);
   updateImportMode();
-  const result = await modal.form('Import into Relay', { content:h('div', { class:'importForm', style:'display:grid;gap:10px' }, h('label', {}, 'Format', mode), help, curl), ok:'Continue', submit:() => { if (mode.value === 'curl' && !curl.value.trim()) { toast('Paste a curl command first', true); curl.focus(); return false; } return { mode:mode.value, curl:curl.value }; } });
+  const result = await modal.form('Import into Relay', { content:h('div', { class:'importForm', style:'display:grid;gap:10px' }, h('label', {}, 'Format', mode), help, collectionRow, curl), ok:'Continue', submit:() => { if (mode.value === 'curl' && !curl.value.trim()) { toast('Paste a curl command first', true); curl.focus(); return false; } return { mode:mode.value, curl:curl.value, collectionId:usesWorkspaceFiles()?collection.value:'' }; } });
   if (!result) return;
   if (result.mode === 'curl') { if (result.curl.trim()) await importCurlText(result.curl); else toast('Paste a curl command first', true); return; }
-  $('importFile').dataset.mode = result.mode; $('importFile').click();
+  $('importFile').dataset.mode = result.mode; $('importFile').dataset.collectionId = result.collectionId; $('importFile').click();
 };
 $('importFile').onchange = async () => {
   const f = $('importFile').files[0]; if (!f) return;
@@ -3902,25 +3919,34 @@ $('importFile').onchange = async () => {
     if (mode === 'postman') {
       const source=await f.text();
       const backupName=slugify(f.name.replace(/\.json$/i,'')||'postman-source')+'.original.json';
-      const preview=await api('/api/import/postman?preview=1',{method:'POST',body:source});
-      let committed;
-      try{committed=await confirmBulkImport('/api/import/postman',source,'Postman',preview);}
-      catch(commitError){await showImportFailure(commitError,source,backupName);return;}
-      if(committed.cancelled)return;
-      const out=committed.out;
-      await refresh();
-      try {
-        if (out.sourceId) {
-          const backup = await apiBlob('/api/import/postman/source/' + encodeURIComponent(out.sourceId));
-          saveBlob(backup, backupName);
-        } else {
-          saveBlob(new Blob([source], { type: 'application/json' }), backupName);
+      try{
+        const endpoint=importURL('/api/import/postman',{collectionId:$('importFile').dataset.collectionId||undefined});
+        const preview=await api(importURL(endpoint,{preview:1}),{method:'POST',body:source});
+        const committed=await confirmBulkImport(endpoint,source,'Postman',preview);
+        if(committed.cancelled)return;
+        const out=committed.out;
+        if(out.kind==='environment') {
+          S.envName=out.environmentName; S.envEdit=out.environmentName; localStorage.envName=S.envName;
+          await refresh();
+          if(S.req&&S.view==='collections')await openRequest(S.req.id,S.envName);
+          else if(S.view==='environments')renderEnvView(S.envName);
+          toast(`Imported environment ${out.environmentName}: ${out.variables} variables`);
+          return;
         }
-      } catch (e) {
-        saveBlob(new Blob([source], { type: 'application/json' }), backupName);
-        toast('Imported collection; downloaded the original JSON backup from this file', false);
-      }
-      toast(`Imported ${out.requests} requests; original JSON backup downloaded`);
+        await refresh();
+        try {
+          if (out.sourceId) {
+            const backup = await apiBlob('/api/import/postman/source/' + encodeURIComponent(out.sourceId));
+            saveBlob(backup, backupName);
+          } else {
+            saveBlob(new Blob([source], { type: 'application/json' }), backupName);
+          }
+        } catch (e) {
+          saveBlob(new Blob([source], { type: 'application/json' }), backupName);
+          toast('Imported collection; downloaded the original JSON backup from this file', false);
+        }
+        toast(`Imported ${out.requests} requests; original JSON backup downloaded`);
+      } catch(importError){await showImportFailure(importError,source,backupName);}
       return;
     }
     if (mode === 'openapi') {

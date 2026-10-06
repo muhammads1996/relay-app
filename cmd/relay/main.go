@@ -1,6 +1,6 @@
 // Command relay is a lightweight, local-first API client: send single
 // requests, run collections with assertions (JUnit/JSON reports for CI),
-// import Postman collections, and export curl commands.
+// import Postman collections and environments, and export curl commands.
 package main
 
 import (
@@ -70,7 +70,7 @@ Usage:
                              [--data rows.csv|rows.json] [--delay 0ms] [--bail]
                              [--config relay-run.json] [--plan ID] [--execution ID] [--no-cookies]
                              [--xray-push] [--insecure] [--timeout 30s]
-  relay import postman <collection.json> [--out DIR]
+  relay import postman <collection-or-environment.json> [--out DIR]
   relay import curl '<command>'          [--out FILE]   (or pipe via stdin)
   relay import openapi <spec.json>       [--out DIR]
   relay export curl <file.req.toml> [--env NAME]
@@ -674,17 +674,20 @@ func cmdImport(args []string) error {
 		return fmt.Errorf("usage: relay import postman|curl|openapi ...")
 	}
 	fs := flag.NewFlagSet("import postman", flag.ExitOnError)
-	out := fs.String("out", "", "output directory (default: collection name)")
+	out := fs.String("out", "", "output directory (default: collection name; current directory for environments)")
 	pos, err := parseInterleaved(fs, args[1:])
 	if err != nil {
 		return err
 	}
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: relay import postman <collection.json>")
+		return fmt.Errorf("usage: relay import postman <collection-or-environment.json>")
 	}
 	data, err := os.ReadFile(pos[0])
 	if err != nil {
 		return err
+	}
+	if porter.IsPostmanEnvironment(data) {
+		return importPostmanEnvironment(data, *out)
 	}
 	dir := *out
 	if dir == "" {
@@ -704,6 +707,46 @@ func cmdImport(args []string) error {
 		return err
 	}
 	fmt.Printf("imported %d requests into %s/\n", n, dir)
+	return nil
+}
+
+func importPostmanEnvironment(data []byte, outDir string) error {
+	env, err := porter.ParsePostmanEnvironment(data)
+	if err != nil {
+		return err
+	}
+	if outDir == "" {
+		outDir = "."
+	}
+	dir := filepath.Join(outDir, "environments")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	path := filepath.Join(dir, env.Name+".toml")
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if os.IsExist(err) {
+		return fmt.Errorf("environment %q already exists at %s", env.Name, path)
+	}
+	if err != nil {
+		return err
+	}
+	header := fmt.Sprintf("id = %q\nschema_version = %d\nname = %q\n", workspace.NewID(), workspace.SchemaVersion, env.Name)
+	body := store.MarshalEnvironment(store.Environment{
+		Name: env.Name, Vars: env.Vars, Secrets: env.Secrets,
+	})
+	_, writeErr := f.Write(append([]byte(header), body...))
+	closeErr := f.Close()
+	if writeErr != nil || closeErr != nil {
+		_ = os.Remove(path)
+		if writeErr != nil {
+			return writeErr
+		}
+		return closeErr
+	}
+	for _, warning := range env.Warnings {
+		fmt.Fprintf(os.Stderr, "warning: %s: %s\n", warning.Location, warning.Message)
+	}
+	fmt.Printf("imported %d environment variables into %s\n", env.Variables, path)
 	return nil
 }
 

@@ -52,7 +52,7 @@ relay run  <dir>           [--env NAME] [--report junit|json] [--out FILE]
                            [--config relay-run.json] [--plan ID] [--execution ID]
                            [--xray-push] [--insecure] [--timeout 30s] [--no-redirect]
 
-relay import postman <collection.json> [--out DIR]
+relay import postman <collection-or-environment.json> [--out DIR]
 relay import openapi <spec.json>       [--out DIR]
 relay import curl '<command>'          [--out FILE]
 
@@ -299,7 +299,7 @@ If no workspace is provided, the app uses the OS app-data location: `%APPDATA%\R
 ## Current Limitations
 
 - OAuth token management and complete-response streaming exist as backend components but are not integrated into the request editor. Use the supported auth helpers; do not treat a response preview as a complete download.
-- Postman compatibility is partial. OpenAPI YAML, Postman environment migration, saved examples, and advanced `pm.*` APIs require additional work and acceptance coverage.
+- Postman compatibility is partial. OpenAPI YAML, saved examples, and advanced `pm.*` APIs require additional work and acceptance coverage.
 - History stores response snapshots, not complete immutable requests and environments. Exact replay and environment filtering are unavailable.
 - Test Management definitions remain in SQLite. Export the required automation artifacts for CI; a request-file run is not identical to every UI test case.
 - Native workspace picking/recents, file-selection workflows, reversible deletion, and full accessibility and installer/upgrade acceptance remain release work.

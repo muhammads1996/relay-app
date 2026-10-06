@@ -191,15 +191,20 @@ relay run collections/aml --env sit --config relay.ci.json
 
 ## 9. Import And Export
 
-The workbench can import Postman collection JSON, OpenAPI JSON, and pasted curl commands.
+The workbench can import Postman collection or environment JSON, OpenAPI JSON, and pasted curl commands. Choose **Postman collection or environment JSON** to import a standalone `.postman_environment.json` file. Relay previews its variable count and warnings, then selects the imported environment. In a file workspace with several collections, choose the collection that should receive a new environment.
+
+Environment names become safe lowercase filename stems; for example, `Enterprise Policy Services - SIT/ST Environment` becomes `enterprise-policy-services-sit-st-environment`. Disabled variables are skipped. Secret variables (including keys containing `token`, `secret`, or `password`) become secret references. The preview lists the `RELAY_SECRET_<NAME>` process variables needed to supply their values. Reimporting an environment in the workbench previews replacement and checks for changes before saving.
 
 The CLI can import the same sources:
 
 ```sh
 relay import postman collection.json --out my-collection
+relay import postman environment.postman_environment.json --out my-collection
 relay import openapi openapi.json --out my-api
 relay import curl 'curl https://api.example.com/health'
 ```
+
+CLI environment imports write `environments/<name>.toml` under `--out` (the current directory by default) and refuse to overwrite an existing file.
 
 The workbench and CLI can export Postman collection JSON, OpenAPI JSON, curl, k6, and Playwright API tests.
 

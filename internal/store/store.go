@@ -484,6 +484,44 @@ func (s *Store) UpsertEnvironment(e *Environment) error {
 	return nil
 }
 
+// CompareAndSwapEnvironment writes an imported environment only if its stored
+// definition still matches expected. A nil expected requires a new name.
+// A false result means another write or deletion changed the environment.
+func (s *Store) CompareAndSwapEnvironment(e *Environment, expected *Environment) (bool, error) {
+	if e == nil || e.Name == "" {
+		return false, fmt.Errorf("environment needs a name")
+	}
+	if expected != nil && expected.Name != e.Name {
+		return false, fmt.Errorf("expected environment name does not match %q", e.Name)
+	}
+	var res sql.Result
+	var err error
+	if expected == nil {
+		res, err = s.db.Exec(`INSERT INTO environments (name, vars, secrets) VALUES (?, ?, ?)
+			ON CONFLICT(name) DO NOTHING`, e.Name, j(e.Vars), j(e.Secrets))
+	} else {
+		res, err = s.db.Exec(`UPDATE environments SET vars = ?, secrets = ?
+			WHERE name = ? AND vars = ? AND secrets = ?`,
+			j(e.Vars), j(e.Secrets), e.Name, j(expected.Vars), j(expected.Secrets))
+	}
+	if err != nil {
+		return false, err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if affected == 0 {
+		return false, nil
+	}
+	stored, err := s.Environment(e.Name)
+	if err != nil {
+		return false, err
+	}
+	e.ID = stored.ID
+	return true, nil
+}
+
 func (s *Store) DeleteEnvironment(name string) error {
 	_, err := s.db.Exec(`DELETE FROM environments WHERE name = ?`, name)
 	return err

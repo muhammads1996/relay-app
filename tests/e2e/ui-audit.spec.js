@@ -411,6 +411,66 @@ test('interface mode persists and environment changes preserve the active view',
   }
 });
 
+test('Postman environment import preserves the selected collection across conflicts', async ({ page }) => {
+  const name = 'imported-policy-sit';
+  const collectionId = 987654;
+  const queries = [];
+  const downloads = [];
+  let conflict = false;
+  let imported = false;
+  page.on('download', download => downloads.push(download.suggestedFilename()));
+  await page.route('**/api/state', async route => {
+    const response = await route.fetch();
+    const state = await response.json();
+    state.storageMode = 'files';
+    state.workspaceHash = conflict ? 'workspace-after-conflict' : 'workspace-before-conflict';
+    state.collections = [...state.collections.slice(0, 1), { id: collectionId, name: 'Policy API', requests: [], folders: [] }];
+    if (imported) state.environments.push({ name, vars: { baseUrl: 'https://policy.example.test' }, secrets: ['apiToken'] });
+    await route.fulfill({ json: state });
+  });
+  await page.route('**/api/workspace/refresh-status', route => route.fulfill({ json: { generation: 0 } }));
+  await page.route('**/api/import/postman?**', async route => {
+    const query = new URL(route.request().url()).searchParams;
+    queries.push(Object.fromEntries(query));
+    const result = { kind: 'environment', environmentName: name, variables: 2, secrets: 1, requests: 0, warnings: [], collectionId, workspaceHash: conflict ? 'workspace-after-conflict' : 'workspace-before-conflict', contentHash: conflict ? 'environment-after-conflict' : '' };
+    if (query.get('preview') === '1') {
+      await route.fulfill({ json: result });
+    } else if (!conflict) {
+      conflict = true;
+      await route.fulfill({ status: 409, json: { error: 'Environment changed on disk' } });
+    } else {
+      imported = true;
+      await route.fulfill({ json: result });
+    }
+  });
+  await page.goto(baseURL, { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Environments', exact: true }).click();
+  await page.getByRole('button', { name: 'Import', exact: true }).click();
+  await expect(page.getByLabel('Import format', { exact: true })).toContainText('Postman collection or environment JSON');
+  await page.getByLabel('Environment import collection', { exact: true }).selectOption(String(collectionId));
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await (await chooser).setFiles({ name: 'policy.postman_environment.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ name: 'Imported Policy SIT', _postman_variable_scope: 'environment', values: [{ key: 'baseUrl', value: 'https://policy.example.test', enabled: true }, { key: 'apiToken', value: 'synthetic-secret', type: 'secret', enabled: true }] })) });
+  await expect(page.locator('#modalMsg')).toContainText('2 variables (1 secret)');
+  await page.getByRole('button', { name: 'Import environment', exact: true }).click();
+  await expect(page.locator('#modalMsg')).toContainText('An existing environment with this name will be replaced.');
+  await expect(page.locator('#modalMsg')).toContainText('The workspace changed before commit.');
+  await page.screenshot({ path: `${outDir}/postman-environment-preview.png`, fullPage: true });
+  await page.getByRole('button', { name: 'Import environment', exact: true }).click();
+  await expect(page.locator('#envSel')).toHaveValue(name);
+  await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+  await expect(page.locator('#work')).toContainText('RELAY_SECRET_APITOKEN');
+  await expect(page.locator('#work')).not.toContainText('synthetic-secret');
+  expect(queries).toEqual([
+    { collectionId: String(collectionId), preview: '1' },
+    { collectionId: String(collectionId), workspaceHash: 'workspace-before-conflict', contentHash: '' },
+    { collectionId: String(collectionId), preview: '1' },
+    { collectionId: String(collectionId), workspaceHash: 'workspace-after-conflict', contentHash: 'environment-after-conflict' },
+  ]);
+  expect(downloads).toEqual([]);
+  await audit(page, 'postman-environment-import');
+});
+
 async function seedTeamTests(page) {
   const post = async (path, data) => {
     const response = await page.request.post(new URL(path, baseURL).href, { data });

@@ -870,6 +870,10 @@ func (s *Server) handleImportPostman(w http.ResponseWriter, r *http.Request) {
 		httpError(w, 400, err)
 		return
 	}
+	if porter.IsPostmanEnvironment(data) {
+		s.importPostmanEnvironment(w, r, data)
+		return
+	}
 	tmp, err := os.MkdirTemp("", "relay-import-*")
 	if err != nil {
 		httpError(w, 500, err)
